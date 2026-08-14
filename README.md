@@ -26,9 +26,14 @@ See [AGENTS.md](./AGENTS.md) for the full technical specification.
 - HybridRetriever (dense + sparse → RRF → FlashRank → sufficiency)
 - Integration tests for full retrieval stack
 
-**Upcoming phases:**
+**Phase 3 (ingestion)** — implemented:
 
-- Secure PDF downloader
+- Secure PDF downloader (HTTPS, domain policy, redirect validation, size limits, PDF signature check)
+- Docling parser with section/content-type preservation
+- Section-aware token chunker
+- Transactional ingestion worker with deduplication and status tracking
+
+**Upcoming phases:**
 - Docling parser + section-aware chunking
 - Ingestion worker
 - arXiv discovery

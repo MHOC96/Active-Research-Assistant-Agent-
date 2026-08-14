@@ -128,3 +128,23 @@ class HybridRetrieveResult(BaseModel):
     query: str
     candidates: list[RetrievalHit]
     sufficiency: SufficiencyResult
+
+
+class ParsedElement(BaseModel):
+    """Structured document element extracted before chunking."""
+
+    text: str
+    content_type: ContentType
+    section: str | None = None
+    subsection: str | None = None
+    page: int | None = None
+
+
+class IngestionResult(BaseModel):
+    document_id: str
+    arxiv_id: str
+    status: DocumentStatus
+    chunk_count: int = 0
+    skipped: bool = False
+    error_type: ErrorType | None = None
+    error_message: str | None = None
