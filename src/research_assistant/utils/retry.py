@@ -24,9 +24,20 @@ RETRYABLE_MARKERS = (
     "rate limit",
 )
 
+NON_RETRYABLE_MARKERS = (
+    "401",
+    "403",
+    "unauthenticated",
+    "invalid api key",
+    "permission denied",
+    "access_token_type_unsupported",
+)
+
 
 def is_retryable(exc: Exception) -> bool:
     message = str(exc).lower()
+    if any(marker in message for marker in NON_RETRYABLE_MARKERS):
+        return False
     return any(marker in message for marker in RETRYABLE_MARKERS)
 
 

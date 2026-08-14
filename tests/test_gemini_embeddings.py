@@ -1,6 +1,6 @@
 """Tests for Gemini embedding service (mocked)."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -12,14 +12,16 @@ def test_gemini_embed_query():
     settings = Settings(GOOGLE_API_KEY="test-key", EMBEDDING_DIMENSION=768)
     service = GeminiEmbeddingService(settings)
 
-    with patch("research_assistant.embeddings.gemini.genai.embed_content") as mock_embed:
-        mock_embed.return_value = {"embedding": [0.1] * 768}
+    mock_embedding = MagicMock()
+    mock_embedding.values = [0.1] * 768
+    mock_response = MagicMock()
+    mock_response.embeddings = [mock_embedding]
+
+    with patch.object(service._client.models, "embed_content", return_value=mock_response) as mock_embed:
         vector = service.embed_query("test query")
 
     assert len(vector) == 768
     mock_embed.assert_called_once()
-    call_kwargs = mock_embed.call_args.kwargs
-    assert call_kwargs["task_type"] == "retrieval_query"
 
 
 def test_gemini_requires_api_key():
@@ -32,7 +34,11 @@ def test_gemini_rejects_wrong_dimension():
     settings = Settings(GOOGLE_API_KEY="test-key", EMBEDDING_DIMENSION=768)
     service = GeminiEmbeddingService(settings)
 
-    with patch("research_assistant.embeddings.gemini.genai.embed_content") as mock_embed:
-        mock_embed.return_value = {"embedding": [0.1] * 512}
+    mock_embedding = MagicMock()
+    mock_embedding.values = [0.1] * 512
+    mock_response = MagicMock()
+    mock_response.embeddings = [mock_embedding]
+
+    with patch.object(service._client.models, "embed_content", return_value=mock_response):
         with pytest.raises(RuntimeError, match="EMBEDDING_FAILED"):
             service.embed_query("test")

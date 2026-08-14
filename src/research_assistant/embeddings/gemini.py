@@ -2,21 +2,27 @@
 
 from __future__ import annotations
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from research_assistant.config import Settings, get_settings
 from research_assistant.utils.retry import with_retry
 
+_TASK_TYPE_MAP = {
+    "retrieval_query": "RETRIEVAL_QUERY",
+    "retrieval_document": "RETRIEVAL_DOCUMENT",
+}
+
 
 class GeminiEmbeddingService:
-    """Generates 768-dim embeddings via models/text-embedding-004."""
+    """Generates 768-dim embeddings via text-embedding-004."""
 
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
         if not self.settings.google_api_key:
             raise ValueError("GOOGLE_API_KEY is required for Gemini embeddings")
-        genai.configure(api_key=self.settings.google_api_key)
-        self._model = self.settings.gemini_embedding_model
+        self._client = genai.Client(api_key=self.settings.google_api_key)
+        self._model = _normalize_embedding_model(self.settings.gemini_embedding_model)
 
     @with_retry()
     def embed_query(self, text: str) -> list[float]:
@@ -28,22 +34,27 @@ class GeminiEmbeddingService:
 
     def _embed(self, text: str, *, task_type: str) -> list[float]:
         try:
-            result = genai.embed_content(
+            response = self._client.models.embed_content(
                 model=self._model,
-                content=text,
-                task_type=task_type,
+                contents=text,
+                config=types.EmbedContentConfig(
+                    task_type=_TASK_TYPE_MAP.get(task_type, "RETRIEVAL_DOCUMENT")
+                ),
             )
         except Exception as exc:
             raise RuntimeError(f"EMBEDDING_FAILED: {exc}") from exc
 
-        embedding = result.get("embedding")
-        if not embedding:
+        if not response.embeddings:
             raise RuntimeError("EMBEDDING_FAILED: empty embedding response")
 
+        embedding = [float(v) for v in response.embeddings[0].values]
         if len(embedding) != self.settings.embedding_dimension:
             raise RuntimeError(
                 f"EMBEDDING_FAILED: expected dimension "
                 f"{self.settings.embedding_dimension}, got {len(embedding)}"
             )
+        return embedding
 
-        return [float(v) for v in embedding]
+
+def _normalize_embedding_model(model: str) -> str:
+    return model.removeprefix("models/")

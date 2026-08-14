@@ -65,9 +65,11 @@ class ResearchOrchestrator:
             min_rerank_score=self.pipeline.settings.min_rerank_score,
         )
 
+        synthesis_hits = merged_hits[: self.pipeline.settings.final_top_k]
+
         answer, citations_valid, citation_errors = self.synthesizer.synthesize(
             analysis.original_query,
-            merged_hits,
+            synthesis_hits,
             sufficiency=overall_sufficiency,
             unsupported_aspects=unsupported_aspects or None,
         )

@@ -60,6 +60,7 @@ Verify configuration:
 
 ```bash
 research-assistant --check-config
+research-assistant --check-config --validate
 ```
 
 Ask a research question:

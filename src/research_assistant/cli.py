@@ -8,11 +8,18 @@ import sys
 
 from research_assistant.bootstrap import build_application
 from research_assistant.config import get_settings
+from research_assistant.health import validate_configuration, validate_external_services
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Active Research Assistant")
     parser.add_argument("--check-config", action="store_true", help="Validate configuration")
+    parser.add_argument(
+        "--validate",
+        action="store_true",
+        help="With --check-config, probe Groq and Gemini API connectivity",
+    )
+    parser.add_argument("--skip-validation", action="store_true", help="Skip API health checks")
     parser.add_argument("query", nargs="?", help="Research question to answer")
     parser.add_argument(
         "--verbose",
@@ -32,6 +39,21 @@ def main() -> None:
             f"MIN_CANDIDATES={settings.min_candidates}, "
             f"MIN_RERANK_SCORE={settings.min_rerank_score}"
         )
+        config_errors = validate_configuration(settings)
+        if config_errors:
+            print("\nConfiguration errors:")
+            for error in config_errors:
+                print(f"- {error}")
+            sys.exit(1)
+        if args.validate:
+            print("\nProbing external services...")
+            service_errors = validate_external_services(settings)
+            if service_errors:
+                print("\nService validation failed:")
+                for error in service_errors:
+                    print(f"- {error}")
+                sys.exit(1)
+            print("Groq and Gemini API checks passed.")
         return
 
     if not args.query:
@@ -43,9 +65,25 @@ def main() -> None:
         format="%(levelname)s %(name)s: %(message)s",
     )
 
+    if not args.skip_validation:
+        errors = validate_external_services()
+        if errors:
+            print("Pipeline startup validation failed:", file=sys.stderr)
+            for error in errors:
+                print(f"- {error}", file=sys.stderr)
+            print(
+                "\nFix the issues above, then rerun. "
+                "Use --check-config --validate for details.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
     app = build_application()
     try:
         response = app.orchestrator.answer(args.query)
+    except RuntimeError as exc:
+        print(f"Pipeline error: {exc}", file=sys.stderr)
+        sys.exit(1)
     finally:
         app.close()
 
