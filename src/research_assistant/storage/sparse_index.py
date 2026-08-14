@@ -153,6 +153,12 @@ class SparseIndex:
             **meta,
         }
 
+    def get_passage(self, chunk_id: str) -> str | None:
+        row = self._conn.execute(
+            "SELECT passage FROM chunks_fts WHERE chunk_id = ?", (chunk_id,)
+        ).fetchone()
+        return row["passage"] if row else None
+
     def chunk_exists(self, chunk_id: str) -> bool:
         row = self._conn.execute(
             "SELECT 1 FROM chunk_metadata WHERE chunk_id = ?", (chunk_id,)

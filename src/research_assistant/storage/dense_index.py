@@ -82,6 +82,16 @@ class DenseIndex:
         hits.sort(key=lambda h: h[1], reverse=True)
         return hits
 
+    def get_passage(self, chunk_id: str) -> str | None:
+        try:
+            result = self._collection.get(ids=[chunk_id], include=["documents"])
+        except Exception:
+            return None
+        docs = result.get("documents") or []
+        if docs and docs[0]:
+            return docs[0]
+        return None
+
     @staticmethod
     def _chunk_metadata(chunk: ChunkRecord) -> dict[str, Any]:
         return {

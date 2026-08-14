@@ -19,10 +19,15 @@ See [AGENTS.md](./AGENTS.md) for the full technical specification.
 - Download path security helpers
 - Transactional dual-index commit with rollback
 
+**Phase 2 (hybrid retrieval)** — implemented:
+
+- Gemini embedding service with retry policy
+- FlashRank cross-encoder reranker wrapper
+- HybridRetriever (dense + sparse → RRF → FlashRank → sufficiency)
+- Integration tests for full retrieval stack
+
 **Upcoming phases:**
 
-- Hybrid retrieval orchestration + FlashRank reranker
-- Gemini embeddings service
 - Secure PDF downloader
 - Docling parser + section-aware chunking
 - Ingestion worker
