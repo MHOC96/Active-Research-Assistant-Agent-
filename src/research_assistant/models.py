@@ -148,3 +148,25 @@ class IngestionResult(BaseModel):
     skipped: bool = False
     error_type: ErrorType | None = None
     error_message: str | None = None
+
+
+class DiscoveryRoundResult(BaseModel):
+    round_number: int
+    papers_discovered: int
+    papers_selected: int
+    papers_ingested: int
+    ingestion_results: list[IngestionResult] = Field(default_factory=list)
+
+
+class ActiveResearchResult(BaseModel):
+    query: str
+    request_id: str
+    retrieval: HybridRetrieveResult
+    discovery_rounds: list[DiscoveryRoundResult] = Field(default_factory=list)
+    papers_discovered: int = 0
+    papers_ingested: int = 0
+    insufficient_message: str | None = None
+
+    @property
+    def sufficient(self) -> bool:
+        return self.retrieval.sufficiency.sufficient

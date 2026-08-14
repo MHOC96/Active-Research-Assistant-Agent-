@@ -33,12 +33,17 @@ See [AGENTS.md](./AGENTS.md) for the full technical specification.
 - Section-aware token chunker
 - Transactional ingestion worker with deduplication and status tracking
 
+**Phase 4 (active discovery)** — implemented:
+
+- arXiv search service (`search_arxiv`)
+- Paper deduplication against ingestion metadata
+- Relevance-based paper selection for ingestion
+- Active literature loop with bounded discovery rounds and re-retrieval
+
 **Upcoming phases:**
-- Docling parser + section-aware chunking
-- Ingestion worker
-- arXiv discovery
-- Groq orchestrator + grounded synthesis
-- End-to-end pipeline CLI
+
+- Groq orchestrator (query normalization, decomposition, synthesis)
+- Citation-grounded synthesis and end-to-end CLI
 
 ## Setup
 
