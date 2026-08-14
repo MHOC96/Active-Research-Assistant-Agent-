@@ -170,3 +170,18 @@ class ActiveResearchResult(BaseModel):
     @property
     def sufficient(self) -> bool:
         return self.retrieval.sufficiency.sufficient
+
+
+class ResearchResponse(BaseModel):
+    request_id: str
+    query: str
+    normalized_query: str
+    query_type: str
+    subqueries: list[str] = Field(default_factory=list)
+    answer: str
+    citations_valid: bool = True
+    citation_errors: list[str] = Field(default_factory=list)
+    subquery_results: list[ActiveResearchResult] = Field(default_factory=list)
+    evidence_hits: list[RetrievalHit] = Field(default_factory=list)
+    sufficient: bool = False
+    insufficient_message: str | None = None

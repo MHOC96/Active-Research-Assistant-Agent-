@@ -40,10 +40,12 @@ See [AGENTS.md](./AGENTS.md) for the full technical specification.
 - Relevance-based paper selection for ingestion
 - Active literature loop with bounded discovery rounds and re-retrieval
 
-**Upcoming phases:**
+**Phase 5 (orchestrator)** — implemented:
 
-- Groq orchestrator (query normalization, decomposition, synthesis)
-- Citation-grounded synthesis and end-to-end CLI
+- Groq Llama 3.3 70B orchestration (query normalization, classification, decomposition)
+- Citation-grounded synthesis with validation and regeneration
+- End-to-end `ResearchOrchestrator` wired through active discovery pipeline
+- CLI: `research-assistant "your question"`
 
 ## Setup
 
@@ -58,6 +60,13 @@ Verify configuration:
 
 ```bash
 research-assistant --check-config
+```
+
+Ask a research question:
+
+```bash
+research-assistant "How does transformer attention work?"
+research-assistant --verbose "Compare RAG and GraphRAG latency"
 ```
 
 Run tests:

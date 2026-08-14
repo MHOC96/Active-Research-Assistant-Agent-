@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     # Groq
     groq_api_key: str = Field(default="", alias="GROQ_API_KEY")
     groq_model: str = Field(default="llama-3.3-70b-versatile", alias="GROQ_MODEL")
+    groq_max_output_tokens: int = Field(default=2048, alias="GROQ_MAX_OUTPUT_TOKENS")
 
     # Gemini embeddings
     google_api_key: str = Field(default="", alias="GOOGLE_API_KEY")
