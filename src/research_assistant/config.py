@@ -25,8 +25,9 @@ class Settings(BaseSettings):
 
     # Gemini embeddings
     google_api_key: str = Field(default="", alias="GOOGLE_API_KEY")
+    google_api_keys_env: str = Field(default="", alias="GOOGLE_API_KEYS")
     gemini_embedding_model: str = Field(
-        default="models/text-embedding-004", alias="GEMINI_EMBEDDING_MODEL"
+        default="gemini-embedding-001", alias="GEMINI_EMBEDDING_MODEL"
     )
     embedding_dimension: int = Field(default=768, alias="EMBEDDING_DIMENSION")
 
@@ -70,7 +71,7 @@ class Settings(BaseSettings):
 
     # Versioning
     index_version: str = Field(default="v1", alias="INDEX_VERSION")
-    embedding_version: str = Field(default="text-embedding-004-768", alias="EMBEDDING_VERSION")
+    embedding_version: str = Field(default="gemini-embedding-001-768", alias="EMBEDDING_VERSION")
     reranker_version: str = Field(default="ms-marco-MiniLM-L-12-v2", alias="RERANKER_VERSION")
 
     # Retry
@@ -80,6 +81,22 @@ class Settings(BaseSettings):
     @classmethod
     def resolve_paths(cls, value: Path) -> Path:
         return value.expanduser().resolve()
+
+    @property
+    def google_api_keys(self) -> list[str]:
+        """Primary GOOGLE_API_KEY first, then unique keys from GOOGLE_API_KEYS."""
+        placeholders = {"your_google_api_key_here", ""}
+        keys: list[str] = []
+        primary = self.google_api_key.strip()
+        if primary and primary not in placeholders:
+            keys.append(primary)
+        raw = self.google_api_keys_env.strip()
+        if raw and raw not in placeholders:
+            for token in raw.replace("\n", ",").split(","):
+                key = token.strip().strip("'").strip('"')
+                if key and key not in placeholders and key not in keys:
+                    keys.append(key)
+        return keys
 
     @property
     def chroma_collection_name(self) -> str:

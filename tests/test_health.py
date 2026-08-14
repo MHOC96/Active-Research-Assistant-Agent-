@@ -10,6 +10,7 @@ def test_validate_configuration_detects_placeholders():
     settings = Settings(
         GROQ_API_KEY="gsk_your_groq_api_key_here",
         GOOGLE_API_KEY="your_google_api_key_here",
+        GOOGLE_API_KEYS="",
     )
     errors = validate_configuration(settings)
     assert len(errors) == 2

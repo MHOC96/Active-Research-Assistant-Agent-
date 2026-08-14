@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
-from docling.document_converter import DocumentConverter
+# Docling's layout models invoke torch.compile on Windows, which requires MSVC.
+os.environ.setdefault("TORCHDYNAMO_DISABLE", "1")
+os.environ.setdefault("TORCH_COMPILE_DISABLE", "1")
+
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling_core.types.doc.document import DoclingDocument
 from docling_core.types.doc.items.table.table import TableItem
 from docling_core.types.doc.items.text import (
@@ -23,7 +30,7 @@ class DoclingParser:
     """Parse PDFs into structured elements preserving sections and content types."""
 
     def __init__(self, converter: DocumentConverter | None = None) -> None:
-        self._converter = converter or DocumentConverter()
+        self._converter = converter or _default_converter()
 
     def parse(self, pdf_path: Path) -> list[ParsedElement]:
         try:
@@ -89,6 +96,21 @@ class DoclingParser:
             )
 
         return elements
+
+
+def _default_converter() -> DocumentConverter:
+    """Build a converter tuned for text-native arXiv PDFs on CPU."""
+    pdf_options = PdfPipelineOptions(
+        do_ocr=False,
+        do_table_structure=True,
+        force_backend_text=True,
+    )
+    return DocumentConverter(
+        allowed_formats=[InputFormat.PDF],
+        format_options={
+            InputFormat.PDF: PdfFormatOption(pipeline_options=pdf_options),
+        },
+    )
 
 
 def _page_no(item: object) -> int | None:
