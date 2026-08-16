@@ -7,6 +7,7 @@ import logging
 from research_assistant.config import Settings, get_settings
 from research_assistant.discovery.arxiv import ArxivDiscoveryService
 from research_assistant.discovery.openalex import OpenAlexDiscoveryService
+from research_assistant.discovery.query_intent import discovery_sources_for_query, is_corporate_query
 from research_assistant.discovery.relevance import relevance_score, select_top_papers
 from research_assistant.discovery.semantic_scholar import SemanticScholarDiscoveryService
 from research_assistant.discovery.sources import source_label
@@ -42,17 +43,25 @@ class MultiSourceDiscoveryService:
     def search_by_source(self, query: str) -> dict[str, list[DiscoveredPaper]]:
         per_source = self.settings.discovery_per_source_max
         results: dict[str, list[DiscoveredPaper]] = {}
+        sources = discovery_sources_for_query(query, self.enabled_sources)
+        corporate = is_corporate_query(query)
 
-        for source in self.enabled_sources:
+        for source in sources:
             papers = self._search_source(source, query)
-            top = select_top_papers(query, papers, max_select=per_source)
+            if source == "web":
+                top = papers[:per_source]
+            elif corporate:
+                top = select_top_papers(query, papers, max_select=per_source, min_score=0.2)
+            else:
+                top = select_top_papers(query, papers, max_select=per_source)
             if top:
                 results[source] = top
                 logger.info(
-                    "discovery source=%s query=%s results=%s",
+                    "discovery source=%s query=%s results=%s corporate=%s",
                     source,
                     query,
                     len(top),
+                    corporate,
                 )
         return results
 

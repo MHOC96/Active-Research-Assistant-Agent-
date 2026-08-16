@@ -22,10 +22,11 @@ def select_top_papers(
     papers: list[DiscoveredPaper],
     *,
     max_select: int,
+    min_score: float = 0.0,
 ) -> list[DiscoveredPaper]:
     if not papers or max_select <= 0:
         return []
 
     scored = [(paper, relevance_score(query, paper)) for paper in papers]
     scored.sort(key=lambda item: item[1], reverse=True)
-    return [paper for paper, score in scored[:max_select] if score > 0]
+    return [paper for paper, score in scored[:max_select] if score > min_score]

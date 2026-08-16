@@ -13,6 +13,7 @@ from research_assistant.discovery.multi import (
     flatten_for_ingestion,
     select_papers_for_ingestion,
 )
+from research_assistant.discovery.query_intent import is_corporate_query
 from research_assistant.ingestion.worker import IngestionWorker
 from research_assistant.models import (
     ActiveResearchResult,
@@ -136,11 +137,14 @@ class ActiveLiteraturePipeline:
 
         all_discovered = flatten_for_ingestion(by_source)
         deduped = deduplicate_papers(all_discovered, self.metadata)
-        selected = select_papers_for_ingestion(
-            query,
-            deduped,
-            max_select=self.settings.max_new_documents_per_query,
-        )
+        if is_corporate_query(query):
+            selected = []
+        else:
+            selected = select_papers_for_ingestion(
+                query,
+                deduped,
+                max_select=self.settings.max_new_documents_per_query,
+            )
 
         if cancellation is not None:
             cancellation.raise_if_cancelled("pdf_download")

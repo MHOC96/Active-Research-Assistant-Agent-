@@ -87,4 +87,5 @@ def parse_ddg_html(page_html: str, *, limit: int = 5) -> list[DiscoveredPaper]:
 
 def _clean_html(value: str) -> str:
     text = TAG_PATTERN.sub("", value)
-    return html.unescape(re.sub(r"\s+", " ", text)).strip()
+    text = html.unescape(re.sub(r"\s+", " ", text)).strip()
+    return text.encode("utf-8", errors="replace").decode("utf-8")
