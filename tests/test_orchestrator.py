@@ -50,7 +50,7 @@ def test_orchestrator_runs_subqueries_and_returns_references():
     pipeline.settings.min_rerank_score = 0.7
     pipeline.settings.citation_style = "mla9"
     pipeline.settings.final_top_k = 3
-    pipeline.settings.discovery_source_list = ["arxiv", "openalex", "semantic_scholar"]
+    pipeline.settings.discovery_source_list = ["arxiv", "openalex", "semantic_scholar", "web"]
     pipeline.run.side_effect = [
         _active_result("RAG accuracy", True),
         _active_result("GraphRAG accuracy", True),
@@ -88,7 +88,7 @@ def test_orchestrator_marks_insufficient_when_subquery_fails():
     pipeline.settings.min_rerank_score = 0.7
     pipeline.settings.citation_style = "mla9"
     pipeline.settings.final_top_k = 3
-    pipeline.settings.discovery_source_list = ["arxiv", "openalex", "semantic_scholar"]
+    pipeline.settings.discovery_source_list = ["arxiv", "openalex", "semantic_scholar", "web"]
     pipeline.run.return_value = _active_result("unknown topic", False)
 
     query_processor = MagicMock()

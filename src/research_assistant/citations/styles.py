@@ -229,7 +229,7 @@ def format_reference(
 
 def format_external_reference(citation: ExternalCitation, style: CitationStyle) -> str:
     """Format a bibliographic entry from an external discovery source."""
-    authors = _reference_authors(citation.authors, style)
+    author = _external_author(citation, style)
     year = _publication_year(citation.published_date)
     title = citation.title.rstrip(".")
     url = citation.url
@@ -239,28 +239,75 @@ def format_external_reference(citation: ExternalCitation, style: CitationStyle) 
         url = f"https://doi.org/{citation.doi}"
 
     venue = "arXiv" if citation.arxiv_id else citation.source_label
+    if citation.source == "web" and citation.publisher:
+        venue = citation.publisher
 
+    reference = ""
     if style == CitationStyle.APA7:
-        return f"{authors} ({year}). {title}. {venue}. {url}" if url else f"{authors} ({year}). {title}. {venue}."
+        reference = (
+            f"{author}. ({year}). {title}. {venue}. {url}"
+            if url
+            else f"{author}. ({year}). {title}. {venue}."
+        )
+    elif style == CitationStyle.MLA9:
+        url_part = f", {url}" if url else ""
+        reference = f'{author}. "{title}." {venue}, {year}{url_part}.'
+    elif style == CitationStyle.CHICAGO17:
+        url_part = f" {url}" if url else ""
+        reference = f'{author}. {year}. "{title}." {venue}.{url_part}'
+    elif style == CitationStyle.IEEE:
+        short_authors = author if citation.source == "web" else _ieee_authors(citation.authors)
+        url_part = f" [Online]. Available: {url}" if url else ""
+        reference = f'{short_authors}, "{title}," {venue}, {year}.{url_part}'
+    elif style == CitationStyle.HARVARD:
+        url_part = f" Available at: {url}" if url else ""
+        reference = f"{author} ({year}) '{title}', {venue}.{url_part}"
+
+    if not reference:
+        return ""
+
+    if citation.source == "web":
+        in_text = format_external_in_text(citation, style)
+        return f"{reference}\nIn-text: {in_text}"
+    return reference
+
+
+def format_external_in_text(citation: ExternalCitation, style: CitationStyle) -> str:
+    """Format an in-text citation for web or corporate sources."""
+    author = _external_author_label(citation)
+    year = _publication_year(citation.published_date)
 
     if style == CitationStyle.MLA9:
-        url_part = f", {url}" if url else ""
-        return f'{authors}. "{title}." {venue}, {year}{url_part}.'
-
-    if style == CitationStyle.CHICAGO17:
-        url_part = f" {url}" if url else ""
-        return f'{authors}. {year}. "{title}." {venue}.{url_part}'
-
+        return f"({author})"
+    if style in {CitationStyle.APA7, CitationStyle.CHICAGO17, CitationStyle.HARVARD}:
+        return f"({author}, {year})"
     if style == CitationStyle.IEEE:
-        short_authors = _ieee_authors(citation.authors)
-        url_part = f" [Online]. Available: {url}" if url else ""
-        return f'{short_authors}, "{title}," {venue}, {year}.{url_part}'
+        return "[?]"
+    return f"({author}, {year})"
 
-    if style == CitationStyle.HARVARD:
-        url_part = f" Available at: {url}" if url else ""
-        return f"{authors} ({year}) '{title}', {venue}.{url_part}"
 
-    return ""
+def _external_author(citation: ExternalCitation, style: CitationStyle) -> str:
+    if citation.authors:
+        return _reference_authors(citation.authors, style)
+    if citation.publisher:
+        return citation.publisher
+    if citation.url:
+        from research_assistant.discovery.publisher import publisher_from_url
+
+        return publisher_from_url(citation.url)
+    return "Unknown"
+
+
+def _external_author_label(citation: ExternalCitation) -> str:
+    if citation.authors:
+        return _author_label(citation.authors)
+    if citation.publisher:
+        return citation.publisher
+    if citation.url:
+        from research_assistant.discovery.publisher import publisher_from_url
+
+        return publisher_from_url(citation.url)
+    return "Unknown"
 
 
 def _author_label(authors: list[str]) -> str:

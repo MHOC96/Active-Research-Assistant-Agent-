@@ -70,7 +70,7 @@ class Settings(BaseSettings):
 
     # Discovery
     discovery_sources: str = Field(
-        default="arxiv,openalex,semantic_scholar",
+        default="arxiv,openalex,semantic_scholar,web",
         alias="DISCOVERY_SOURCES",
     )
     discovery_per_source_max: int = Field(default=1, alias="DISCOVERY_PER_SOURCE_MAX")

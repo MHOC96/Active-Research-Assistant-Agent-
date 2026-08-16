@@ -9,7 +9,8 @@ from research_assistant.discovery.arxiv import ArxivDiscoveryService
 from research_assistant.discovery.openalex import OpenAlexDiscoveryService
 from research_assistant.discovery.relevance import relevance_score, select_top_papers
 from research_assistant.discovery.semantic_scholar import SemanticScholarDiscoveryService
-from research_assistant.discovery.sources import DEFAULT_DISCOVERY_SOURCES, source_label
+from research_assistant.discovery.sources import source_label
+from research_assistant.discovery.web import WebDiscoveryService
 from research_assistant.models import ArxivPaper, DiscoveredPaper, ExternalCitation
 from research_assistant.storage.metadata_store import MetadataStore
 
@@ -26,11 +27,13 @@ class MultiSourceDiscoveryService:
         arxiv: ArxivDiscoveryService | None = None,
         openalex: OpenAlexDiscoveryService | None = None,
         semantic_scholar: SemanticScholarDiscoveryService | None = None,
+        web: WebDiscoveryService | None = None,
     ) -> None:
         self.settings = settings or get_settings()
         self._arxiv = arxiv or ArxivDiscoveryService(self.settings)
         self._openalex = openalex or OpenAlexDiscoveryService(self.settings)
         self._semantic_scholar = semantic_scholar or SemanticScholarDiscoveryService(self.settings)
+        self._web = web or WebDiscoveryService(self.settings)
 
     @property
     def enabled_sources(self) -> list[str]:
@@ -67,6 +70,8 @@ class MultiSourceDiscoveryService:
             return self._semantic_scholar.search(
                 query, max_results=self.settings.discovery_max_results
             )
+        if source == "web":
+            return self._web.search(query, max_results=self.settings.discovery_max_results)
         return []
 
 
@@ -118,6 +123,7 @@ def external_citations_from_sources(
                     url=paper.landing_url or paper.pdf_url or "",
                     doi=paper.doi,
                     arxiv_id=paper.arxiv_id,
+                    publisher=paper.publisher,
                     relevance_score=relevance_score(query, paper),
                 )
             )

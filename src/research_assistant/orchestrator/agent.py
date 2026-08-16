@@ -95,7 +95,7 @@ class ResearchOrchestrator:
         source_hits = _unique_papers(merged_hits)
         external_citations = _collect_external_citations(subquery_results)
 
-        if not overall_sufficiency.sufficient or (not source_hits and not external_citations):
+        if not source_hits and not external_citations:
             message = _references_insufficient_message(unsupported_aspects, overall_sufficiency)
             return ResearchResponse(
                 request_id=request_id,
@@ -112,24 +112,32 @@ class ResearchOrchestrator:
                 insufficient_message=message,
             )
 
+        answer = format_grouped_references_output(
+            source_hits,
+            external_citations,
+            style,
+            source_order=self.pipeline.settings.discovery_source_list,
+        )
+        if not overall_sufficiency.sufficient:
+            note = _references_insufficient_message(unsupported_aspects, overall_sufficiency)
+            answer = f"{answer}\n\nNote: {note}"
+
         return ResearchResponse(
             request_id=request_id,
             query=analysis.original_query,
             normalized_query=analysis.normalized_query,
             query_type=analysis.query_type,
             subqueries=analysis.subqueries,
-            answer=format_grouped_references_output(
-                source_hits,
-                external_citations,
-                style,
-                source_order=self.pipeline.settings.discovery_source_list,
-            ),
+            answer=answer,
             citations_valid=True,
             citation_style=style.value,
             subquery_results=subquery_results,
             evidence_hits=merged_hits,
             external_citations=external_citations,
-            sufficient=True,
+            sufficient=overall_sufficiency.sufficient,
+            insufficient_message=None
+            if overall_sufficiency.sufficient
+            else _references_insufficient_message(unsupported_aspects, overall_sufficiency),
         )
 
 

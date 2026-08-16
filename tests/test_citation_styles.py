@@ -119,6 +119,25 @@ def test_format_grouped_references_output_groups_by_source():
     assert "Knowledge Graph RAG" in output
 
 
+def test_format_external_reference_web_corporate_apa():
+    from research_assistant.citations.styles import format_external_in_text, format_external_reference
+    from research_assistant.models import ExternalCitation
+
+    citation = ExternalCitation(
+        source="web",
+        source_label="Web",
+        title="IT Service Management",
+        publisher="ServiceNow",
+        published_date="2023",
+        url="https://www.servicenow.com/products/itsm.html",
+    )
+    reference = format_external_reference(citation, CitationStyle.APA7)
+    assert "ServiceNow. (2023)." in reference
+    assert "IT Service Management" in reference
+    assert "In-text: (ServiceNow, 2023)" in reference
+    assert format_external_in_text(citation, CitationStyle.APA7) == "(ServiceNow, 2023)"
+
+
 def test_internal_style_keeps_provenance_tags():
     answer = "Claim [arXiv:1809.04281 | Chunk 6]."
     formatted = format_answer_citations(answer, [_hit()], CitationStyle.INTERNAL)

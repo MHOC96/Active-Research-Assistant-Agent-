@@ -6,9 +6,15 @@ SOURCE_LABELS: dict[str, str] = {
     "arxiv": "arXiv",
     "openalex": "OpenAlex",
     "semantic_scholar": "Semantic Scholar",
+    "web": "Web",
 }
 
-DEFAULT_DISCOVERY_SOURCES: tuple[str, ...] = ("arxiv", "openalex", "semantic_scholar")
+DEFAULT_DISCOVERY_SOURCES: tuple[str, ...] = (
+    "arxiv",
+    "openalex",
+    "semantic_scholar",
+    "web",
+)
 
 
 def parse_discovery_sources(value: str) -> list[str]:

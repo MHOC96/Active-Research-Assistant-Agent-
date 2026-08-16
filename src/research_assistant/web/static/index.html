@@ -32,9 +32,9 @@
         <ol>
           <li>Enter a research question or paste text you want to cite.</li>
           <li>The system searches your local index (ChromaDB + keyword search).</li>
-          <li>If evidence is weak, it searches arXiv, OpenAlex, and Semantic Scholar for papers.</li>
-          <li>arXiv PDFs are ingested into your local index; other sources contribute citation metadata.</li>
-          <li>You get MLA/APA/IEEE formatted references grouped by source (top hit per site).</li>
+          <li>If evidence is weak, it searches arXiv, OpenAlex, Semantic Scholar, and the web.</li>
+          <li>arXiv PDFs are ingested into your local index; web and index hits become formatted citations.</li>
+          <li>Corporate or documentation pages cite as author-date, e.g. (ServiceNow, 2023).</li>
           <li>Recent queries are saved locally - click one to instantly reload its result without re-running the pipeline.</li>
           <li>Select history items and use Remove selected to delete saved results you no longer need.</li>
         </ol>
@@ -108,7 +108,7 @@
             <ul class="progress-steps" id="progress-steps">
               <li data-step="analyze">Analyzing query</li>
               <li data-step="retrieve">Searching local index</li>
-              <li data-step="discover">Discovering papers (arXiv, OpenAlex, Semantic Scholar)</li>
+              <li data-step="discover">Discovering papers and web sources</li>
               <li data-step="ingest">Ingesting PDFs</li>
               <li data-step="format">Formatting citations</li>
             </ul>

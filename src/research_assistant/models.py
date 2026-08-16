@@ -139,6 +139,7 @@ class DiscoveredPaper(BaseModel):
     landing_url: str | None = None
     doi: str | None = None
     arxiv_id: str | None = None
+    publisher: str | None = None
     categories: list[str] = Field(default_factory=list)
 
     @property
@@ -178,6 +179,7 @@ class ExternalCitation(BaseModel):
     url: str
     doi: str | None = None
     arxiv_id: str | None = None
+    publisher: str | None = None
     relevance_score: float = 0.0
 
 

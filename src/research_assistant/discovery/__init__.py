@@ -10,12 +10,14 @@ from research_assistant.discovery.multi import (
 )
 from research_assistant.discovery.openalex import OpenAlexDiscoveryService
 from research_assistant.discovery.semantic_scholar import SemanticScholarDiscoveryService
+from research_assistant.discovery.web import WebDiscoveryService
 
 __all__ = [
     "ArxivDiscoveryService",
     "MultiSourceDiscoveryService",
     "OpenAlexDiscoveryService",
     "SemanticScholarDiscoveryService",
+    "WebDiscoveryService",
     "deduplicate_papers",
     "external_citations_from_sources",
     "flatten_for_ingestion",
