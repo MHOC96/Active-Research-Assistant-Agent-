@@ -102,6 +102,11 @@ class HybridRetriever:
         if page_val is None:
             page_val = chroma_meta.get("page")
         page = int(page_val) if page_val is not None and int(page_val) >= 0 else None
+        authors_raw = meta.get("authors") or chroma_meta.get("authors") or []
+        authors = _normalize_authors(authors_raw)
+        published_date = meta.get("published_date") or chroma_meta.get("published_date")
+        if published_date == "":
+            published_date = None
 
         if not passage:
             passage = self.dense.get_passage(chunk_id) or ""
@@ -118,7 +123,17 @@ class HybridRetriever:
             section=section or None,
             page=page,
             chunk_index=chunk_index,
+            authors=list(authors),
+            published_date=published_date,
             dense_rank=dense_rank,
             sparse_rank=sparse_rank,
             rrf_score=rrf_score,
         )
+
+
+def _normalize_authors(value: object) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str) and value.strip():
+        return [part.strip() for part in value.split(",") if part.strip()]
+    return []

@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock
 
+from research_assistant.citations.styles import CitationStyle
 from research_assistant.models import (
     ActiveResearchResult,
     HybridRetrieveResult,
@@ -43,10 +44,13 @@ def _active_result(query: str, sufficient: bool) -> ActiveResearchResult:
     )
 
 
-def test_orchestrator_runs_subqueries_and_synthesizes():
+def test_orchestrator_runs_subqueries_and_returns_references():
     pipeline = MagicMock()
     pipeline.settings.min_candidates = 1
     pipeline.settings.min_rerank_score = 0.7
+    pipeline.settings.citation_style = "mla9"
+    pipeline.settings.final_top_k = 3
+    pipeline.settings.discovery_source_list = ["arxiv", "openalex", "semantic_scholar"]
     pipeline.run.side_effect = [
         _active_result("RAG accuracy", True),
         _active_result("GraphRAG accuracy", True),
@@ -60,25 +64,21 @@ def test_orchestrator_runs_subqueries_and_synthesizes():
         subqueries=["RAG accuracy", "GraphRAG accuracy"],
     )
 
-    synthesizer = MagicMock()
-    synthesizer.synthesize.return_value = (
-        "RAG and GraphRAG accuracy are discussed [arXiv:2407.08608 | Chunk 0].",
-        True,
-        [],
-    )
-
     orchestrator = ResearchOrchestrator(
         pipeline=pipeline,
         llm=MagicMock(),
         query_processor=query_processor,
-        synthesizer=synthesizer,
     )
 
-    response = orchestrator.answer("Compare RAG and GraphRAG accuracy")
+    response = orchestrator.answer(
+        "Compare RAG and GraphRAG accuracy",
+        citation_style=CitationStyle.MLA9,
+    )
 
     assert isinstance(response, ResearchResponse)
     assert pipeline.run.call_count == 2
     assert response.citations_valid is True
+    assert response.answer.startswith("References")
     assert len(response.evidence_hits) == 1
 
 
@@ -86,6 +86,9 @@ def test_orchestrator_marks_insufficient_when_subquery_fails():
     pipeline = MagicMock()
     pipeline.settings.min_candidates = 1
     pipeline.settings.min_rerank_score = 0.7
+    pipeline.settings.citation_style = "mla9"
+    pipeline.settings.final_top_k = 3
+    pipeline.settings.discovery_source_list = ["arxiv", "openalex", "semantic_scholar"]
     pipeline.run.return_value = _active_result("unknown topic", False)
 
     query_processor = MagicMock()
@@ -96,18 +99,10 @@ def test_orchestrator_marks_insufficient_when_subquery_fails():
         subqueries=["unknown topic"],
     )
 
-    synthesizer = MagicMock()
-    synthesizer.synthesize.return_value = (
-        "INSUFFICIENT_EVIDENCE: no relevant passages retrieved",
-        True,
-        [],
-    )
-
     orchestrator = ResearchOrchestrator(
         pipeline=pipeline,
         llm=MagicMock(),
         query_processor=query_processor,
-        synthesizer=synthesizer,
     )
 
     response = orchestrator.answer("unknown topic")

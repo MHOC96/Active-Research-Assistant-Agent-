@@ -23,14 +23,22 @@ from docling_core.types.doc.items.text import (
 )
 from docling_core.types.doc.labels import DocItemLabel
 
+from research_assistant.config import Settings, get_settings
 from research_assistant.models import ContentType, ParsedElement
+
+_CONVERTER_CACHE: dict[bool, DocumentConverter] = {}
 
 
 class DoclingParser:
     """Parse PDFs into structured elements preserving sections and content types."""
 
-    def __init__(self, converter: DocumentConverter | None = None) -> None:
-        self._converter = converter or _default_converter()
+    def __init__(
+        self,
+        converter: DocumentConverter | None = None,
+        settings: Settings | None = None,
+    ) -> None:
+        self.settings = settings or get_settings()
+        self._converter = converter or _get_converter(fast=self.settings.fast_ingestion)
 
     def parse(self, pdf_path: Path) -> list[ParsedElement]:
         try:
@@ -98,11 +106,17 @@ class DoclingParser:
         return elements
 
 
-def _default_converter() -> DocumentConverter:
+def _get_converter(*, fast: bool) -> DocumentConverter:
+    if fast not in _CONVERTER_CACHE:
+        _CONVERTER_CACHE[fast] = _default_converter(fast=fast)
+    return _CONVERTER_CACHE[fast]
+
+
+def _default_converter(*, fast: bool = False) -> DocumentConverter:
     """Build a converter tuned for text-native arXiv PDFs on CPU."""
     pdf_options = PdfPipelineOptions(
         do_ocr=False,
-        do_table_structure=True,
+        do_table_structure=not fast,
         force_backend_text=True,
     )
     return DocumentConverter(

@@ -2,6 +2,7 @@
 
 import json
 
+from research_assistant.config import Settings
 from research_assistant.orchestrator.query_processor import QueryProcessor
 
 
@@ -23,7 +24,10 @@ def test_analyze_simple_query():
             "subqueries": ["transformer attention mechanism"],
         }
     )
-    processor = QueryProcessor(MockLLM(payload))
+    processor = QueryProcessor(
+        MockLLM(payload),
+        settings=Settings(skip_query_llm_for_simple=False),
+    )
 
     analysis = processor.analyze("Can you explain the transformer attention mechanism?")
 

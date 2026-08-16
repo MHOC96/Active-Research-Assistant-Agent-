@@ -5,11 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from research_assistant.config import Settings, get_settings
-from research_assistant.discovery.arxiv import ArxivDiscoveryService
+from research_assistant.discovery.multi import MultiSourceDiscoveryService
 from research_assistant.embeddings.gemini import GeminiEmbeddingService
 from research_assistant.ingestion.worker import IngestionWorker
 from research_assistant.orchestrator.agent import ResearchOrchestrator
 from research_assistant.orchestrator.llm import GroqLLMClient
+from research_assistant.orchestrator.query_processor import QueryProcessor
 from research_assistant.pipeline.active_loop import ActiveLiteraturePipeline
 from research_assistant.reranking.flashrank_reranker import FlashRankReranker
 from research_assistant.retrieval.hybrid import HybridRetriever
@@ -47,13 +48,17 @@ def build_application(settings: Settings | None = None) -> ApplicationContext:
     ingestion_worker = IngestionWorker(metadata, dense, sparse, embedder, settings=settings)
     pipeline = ActiveLiteraturePipeline(
         retriever=retriever,
-        discovery=ArxivDiscoveryService(settings),
+        discovery=MultiSourceDiscoveryService(settings),
         ingestion_worker=ingestion_worker,
         metadata=metadata,
         settings=settings,
     )
     llm = GroqLLMClient(settings)
-    orchestrator = ResearchOrchestrator(pipeline, llm)
+    orchestrator = ResearchOrchestrator(
+        pipeline,
+        llm,
+        query_processor=QueryProcessor(llm, settings=settings),
+    )
     return ApplicationContext(
         settings=settings,
         metadata=metadata,

@@ -20,6 +20,8 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "arxiv>=2.1.0",
     "tiktoken>=0.7.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
 ]
 
 [project.optional-dependencies]
@@ -30,6 +32,7 @@ dev = [
 
 [project.scripts]
 research-assistant = "research_assistant.cli:main"
+research-assistant-ui = "research_assistant.web.serve:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -100,8 +100,27 @@ All settings load from `.env`. Key variables:
 | `MIN_RERANK_SCORE` | Sufficiency threshold (default: `0.70`) |
 | `MAX_NEW_DOCUMENTS_PER_QUERY` | Cap on papers ingested per query (default: `3`) |
 | `MAX_DISCOVERY_ROUNDS` | Max arXiv discovery loops (default: `2`) |
+| `CITATION_STYLE` | Output citation format (default: `internal`) |
 
 See [`.env.example`](./.env.example) for the complete list.
+
+List available styles:
+
+```bash
+research-assistant --list-citation-styles
+```
+
+Use a style for one query:
+
+```bash
+research-assistant --citation-style apa7 "How does transformer attention work?"
+```
+
+Or set the default in `.env`:
+
+```env
+CITATION_STYLE=apa7
+```
 
 > **Never commit `.env` or API keys to source control.**
 
@@ -116,7 +135,18 @@ research-assistant --check-config
 research-assistant --check-config --validate
 ```
 
-### Ask a research question
+### Local web UI
+
+```bash
+pip install -e .
+research-assistant-ui
+```
+
+Open **http://127.0.0.1:7860** in your browser.
+
+The UI supports citation style selection, fast mode, and references-only output.
+
+### Ask a research question (CLI)
 
 ```bash
 research-assistant "How does transformer self-attention work?"
@@ -128,6 +158,12 @@ With pipeline logging:
 research-assistant --verbose "Compare RAG and GraphRAG on latency and hallucination rate"
 ```
 
+Speed mode (target ~1 minute when ingesting **one** new paper):
+
+```bash
+research-assistant --fast --citation-style apa7 "Compare RAG and GraphRAG"
+```
+
 ### CLI options
 
 | Flag | Description |
@@ -136,6 +172,9 @@ research-assistant --verbose "Compare RAG and GraphRAG on latency and hallucinat
 | `--validate` | With `--check-config`, probe Groq and Gemini APIs |
 | `--verbose` | Enable informational logging |
 | `--skip-validation` | Skip startup API health checks |
+| `--citation-style STYLE` | Citation format (`apa7`, `mla9`, `chicago17`, `ieee`, `harvard`, `internal`) |
+| `--list-citation-styles` | List all supported citation styles |
+| `--fast` | Speed mode: 1 paper, batched embeddings, lighter PDF parsing |
 
 ### Example output
 

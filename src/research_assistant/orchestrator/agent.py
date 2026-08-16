@@ -1,22 +1,27 @@
-"""Research orchestrator coordinating retrieval, discovery, and synthesis."""
+"""Research orchestrator coordinating retrieval, discovery, and references."""
 
 from __future__ import annotations
 
 import logging
 import uuid
 
-from research_assistant.models import ActiveResearchResult, ResearchResponse, RetrievalHit
+from research_assistant.citations.styles import (
+    CitationStyle,
+    format_grouped_references_output,
+    parse_citation_style,
+)
+from research_assistant.models import ActiveResearchResult, ExternalCitation, ResearchResponse, RetrievalHit
 from research_assistant.orchestrator.llm import LLMClient
-from research_assistant.orchestrator.query_processor import QueryAnalysis, QueryProcessor
-from research_assistant.orchestrator.synthesis import GroundedSynthesizer
+from research_assistant.orchestrator.query_processor import QueryProcessor
 from research_assistant.pipeline.active_loop import ActiveLiteraturePipeline
 from research_assistant.sufficiency.gate import evaluate_sufficiency
+from research_assistant.utils.cancellation import CancellationToken
 
 logger = logging.getLogger(__name__)
 
 
 class ResearchOrchestrator:
-    """End-to-end orchestrator per AGENTS.md operational workflow."""
+    """End-to-end orchestrator: retrieve, discover, ingest, and format references."""
 
     def __init__(
         self,
@@ -24,15 +29,24 @@ class ResearchOrchestrator:
         llm: LLMClient,
         *,
         query_processor: QueryProcessor | None = None,
-        synthesizer: GroundedSynthesizer | None = None,
     ) -> None:
         self.pipeline = pipeline
         self.llm = llm
         self.query_processor = query_processor or QueryProcessor(llm)
-        self.synthesizer = synthesizer or GroundedSynthesizer(llm)
 
-    def answer(self, user_query: str) -> ResearchResponse:
-        request_id = str(uuid.uuid4())
+    def answer(
+        self,
+        user_query: str,
+        *,
+        citation_style: CitationStyle | None = None,
+        cancellation: CancellationToken | None = None,
+    ) -> ResearchResponse:
+        request_id = cancellation.request_id if cancellation is not None else str(uuid.uuid4())
+        style = citation_style or parse_citation_style(self.pipeline.settings.citation_style)
+
+        if cancellation is not None:
+            cancellation.raise_if_cancelled("query_analysis")
+
         analysis = self.query_processor.analyze(user_query)
         logger.info(
             "request_id=%s normalized_query=%s subqueries=%s",
@@ -41,12 +55,22 @@ class ResearchOrchestrator:
             analysis.subqueries,
         )
 
+        if cancellation is not None:
+            cancellation.raise_if_cancelled("subquery_execution")
+
         subquery_results: list[ActiveResearchResult] = []
         unsupported_aspects: list[str] = []
         merged_hits = _merge_hits([])
 
         for subquery in analysis.subqueries:
-            result = self.pipeline.run(subquery)
+            if cancellation is not None:
+                cancellation.raise_if_cancelled("subquery_execution")
+
+            result = self.pipeline.run(
+                subquery,
+                cancellation=cancellation,
+                parent_request_id=request_id,
+            )
             subquery_results.append(result)
             merged_hits = _merge_hits(merged_hits + result.retrieval.candidates)
             if not result.sufficient:
@@ -65,14 +89,28 @@ class ResearchOrchestrator:
             min_rerank_score=self.pipeline.settings.min_rerank_score,
         )
 
-        synthesis_hits = merged_hits[: self.pipeline.settings.final_top_k]
+        if cancellation is not None:
+            cancellation.raise_if_cancelled("references")
 
-        answer, citations_valid, citation_errors = self.synthesizer.synthesize(
-            analysis.original_query,
-            synthesis_hits,
-            sufficiency=overall_sufficiency,
-            unsupported_aspects=unsupported_aspects or None,
-        )
+        source_hits = _unique_papers(merged_hits)
+        external_citations = _collect_external_citations(subquery_results)
+
+        if not overall_sufficiency.sufficient or (not source_hits and not external_citations):
+            message = _references_insufficient_message(unsupported_aspects, overall_sufficiency)
+            return ResearchResponse(
+                request_id=request_id,
+                query=analysis.original_query,
+                normalized_query=analysis.normalized_query,
+                query_type=analysis.query_type,
+                subqueries=analysis.subqueries,
+                answer=message,
+                citations_valid=True,
+                citation_style=style.value,
+                subquery_results=subquery_results,
+                evidence_hits=merged_hits,
+                sufficient=False,
+                insufficient_message=message,
+            )
 
         return ResearchResponse(
             request_id=request_id,
@@ -80,13 +118,18 @@ class ResearchOrchestrator:
             normalized_query=analysis.normalized_query,
             query_type=analysis.query_type,
             subqueries=analysis.subqueries,
-            answer=answer,
-            citations_valid=citations_valid,
-            citation_errors=citation_errors,
+            answer=format_grouped_references_output(
+                source_hits,
+                external_citations,
+                style,
+                source_order=self.pipeline.settings.discovery_source_list,
+            ),
+            citations_valid=True,
+            citation_style=style.value,
             subquery_results=subquery_results,
             evidence_hits=merged_hits,
-            sufficient=overall_sufficiency.sufficient and not unsupported_aspects,
-            insufficient_message=answer if answer.startswith("INSUFFICIENT_EVIDENCE:") else None,
+            external_citations=external_citations,
+            sufficient=True,
         )
 
 
@@ -99,3 +142,40 @@ def _merge_hits(hits: list[RetrievalHit]) -> list[RetrievalHit]:
     merged = list(by_id.values())
     merged.sort(key=lambda h: h.rerank_score or 0.0, reverse=True)
     return merged
+
+
+def _collect_external_citations(
+    results: list[ActiveResearchResult],
+) -> list[ExternalCitation]:
+    seen: set[tuple[str, str]] = set()
+    collected: list[ExternalCitation] = []
+    for result in results:
+        for citation in result.external_citations:
+            key = (citation.source, citation.url or citation.title)
+            if key in seen:
+                continue
+            seen.add(key)
+            collected.append(citation)
+    return collected
+
+
+def _unique_papers(hits: list[RetrievalHit]) -> list[RetrievalHit]:
+    """Keep the highest-scoring chunk per paper, ordered by relevance."""
+    best_by_paper: dict[str, RetrievalHit] = {}
+    for hit in hits:
+        existing = best_by_paper.get(hit.arxiv_id)
+        if existing is None or (hit.rerank_score or 0) > (existing.rerank_score or 0):
+            best_by_paper[hit.arxiv_id] = hit
+    ordered = list(best_by_paper.values())
+    ordered.sort(key=lambda h: h.rerank_score or 0.0, reverse=True)
+    return ordered
+
+
+def _references_insufficient_message(
+    unsupported_aspects: list[str],
+    sufficiency,
+) -> str:
+    if unsupported_aspects:
+        return f"INSUFFICIENT_EVIDENCE: {'; '.join(unsupported_aspects)}"
+    reason = sufficiency.reason or "retrieved evidence did not meet sufficiency thresholds"
+    return f"INSUFFICIENT_EVIDENCE: {reason}"

@@ -38,7 +38,7 @@ class IngestionWorker:
         self.index_tx = IndexTransaction(dense, sparse)
         self.embedder = embedder
         self.downloader = downloader or SecurePdfDownloader(self.settings)
-        self.parser = parser or DoclingParser()
+        self.parser = parser or DoclingParser(settings=self.settings)
         self.chunker = chunker or SectionAwareChunker(self.settings)
 
     def ingest_pdf_document(
@@ -92,6 +92,7 @@ class IngestionWorker:
             self.metadata.upsert_document(doc)
 
             self._set_status(document_id, DocumentStatus.PARSING)
+            logger.info("Parsing PDF for %s ...", document_id)
             elements = self.parser.parse(download.path)
             self._set_status(document_id, DocumentStatus.PARSED)
 
@@ -105,7 +106,9 @@ class IngestionWorker:
             )
 
             self._set_status(document_id, DocumentStatus.EMBEDDING)
+            logger.info("Embedding %s chunks for %s ...", len(chunks), document_id)
             embeddings = self.embedder.embed_documents([c.passage for c in chunks])
+            logger.info("Indexed %s chunks for %s", len(chunks), document_id)
 
             self._set_status(document_id, DocumentStatus.INDEXING)
             self.index_tx.commit_chunks(chunks, embeddings, document_id=document_id)

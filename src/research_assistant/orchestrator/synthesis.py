@@ -3,28 +3,35 @@
 from __future__ import annotations
 
 from research_assistant.citations.validator import validate_citations
+from research_assistant.config import Settings, get_settings
 from research_assistant.models import RetrievalHit, SufficiencyResult
 from research_assistant.orchestrator.llm import LLMClient
+from research_assistant.utils.token_efficiency import truncate_passage
 
-SYNTHESIS_SYSTEM_PROMPT = """You are an academic research assistant.
+SYNTHESIS_SYSTEM_PROMPT = """Academic research assistant. Use ONLY provided evidence.
 
 Rules:
-1. Answer research claims ONLY using the provided retrieved passages.
-2. Every evidence-dependent technical claim MUST include an inline citation using EXACTLY this format: [arXiv:<ID> | Chunk <N>].
-3. Never invent citations, papers, authors, metrics, dates, or experimental results.
-4. Preserve important technical tokens exactly (API names, registers, equations, identifiers, numbers from sources).
-5. If evidence is insufficient for part of the question, state: INSUFFICIENT_EVIDENCE: <specific missing evidence>.
-6. Do not claim a source was consulted unless it appears in the evidence block.
-7. If sources disagree, report both claims with their citations.
+1. Evidence-dependent claims need citations: [arXiv:<ID> | Chunk <N>]
+2. Never invent citations, metrics, or results
+3. Preserve technical tokens exactly
+4. If evidence is missing, write: INSUFFICIENT_EVIDENCE: <what is missing>
+5. Report disagreements with both citations
 """
 
 
 class GroundedSynthesizer:
     """Generate citation-grounded answers from retrieved evidence."""
 
-    def __init__(self, llm: LLMClient, *, max_regenerations: int = 1) -> None:
+    def __init__(
+        self,
+        llm: LLMClient,
+        *,
+        max_regenerations: int = 1,
+        settings: Settings | None = None,
+    ) -> None:
         self.llm = llm
         self.max_regenerations = max_regenerations
+        self.settings = settings or get_settings()
 
     def synthesize(
         self,
@@ -38,8 +45,12 @@ class GroundedSynthesizer:
             message = _insufficient_message(sufficiency, unsupported_aspects)
             return message, True, []
 
-        prompt = _build_prompt(query, hits, unsupported_aspects)
-        answer = self.llm.complete(system=SYNTHESIS_SYSTEM_PROMPT, user=prompt)
+        prompt = _build_prompt(query, hits, unsupported_aspects, self.settings)
+        answer = self.llm.complete(
+            system=SYNTHESIS_SYSTEM_PROMPT,
+            user=prompt,
+            max_tokens=self.settings.groq_synthesis_max_output_tokens,
+        )
 
         for attempt in range(self.max_regenerations + 1):
             valid, errors = validate_citations(answer, hits)
@@ -49,48 +60,52 @@ class GroundedSynthesizer:
                 return answer, False, errors
             answer = self.llm.complete(
                 system=SYNTHESIS_SYSTEM_PROMPT,
-                user=(
-                    f"{prompt}\n\nYour previous answer had invalid citations:\n"
-                    + "\n".join(errors)
-                    + "\nRegenerate using ONLY valid citation identifiers from the evidence."
-                ),
+                user=_build_retry_prompt(answer, hits, errors),
+                max_tokens=self.settings.groq_synthesis_max_output_tokens,
             )
 
         return answer, False, errors
+
+
+def _format_evidence_block(hit: RetrievalHit, max_passage_chars: int) -> str:
+    page = hit.page if hit.page is not None else "-"
+    section = hit.section or "-"
+    passage = truncate_passage(hit.passage, max_passage_chars)
+    return f"{hit.provenance} | {hit.title} | p.{page} | {section}\n{passage}"
 
 
 def _build_prompt(
     query: str,
     hits: list[RetrievalHit],
     unsupported_aspects: list[str] | None,
+    settings: Settings,
 ) -> str:
-    evidence_blocks = []
-    for hit in hits:
-        evidence_blocks.append(
-            "\n".join(
-                [
-                    f"Provenance: {hit.provenance}",
-                    f"Title: {hit.title}",
-                    f"Section: {hit.section or 'N/A'}",
-                    f"Page: {hit.page if hit.page is not None else 'N/A'}",
-                    f"Passage: {hit.passage}",
-                ]
-            )
-        )
+    evidence_blocks = [
+        _format_evidence_block(hit, settings.synthesis_max_passage_chars) for hit in hits
+    ]
 
     unsupported = ""
     if unsupported_aspects:
         unsupported = (
-            "\nUnsupported aspects (must acknowledge explicitly):\n"
-            + "\n".join(f"- {item}" for item in unsupported_aspects)
+            "\nUnsupported aspects:\n" + "\n".join(f"- {item}" for item in unsupported_aspects)
         )
 
     return (
-        f"User query:\n{query}\n\n"
-        f"Evidence sufficiency: sufficient\n\n"
-        f"Retrieved evidence:\n\n"
+        f"Query:\n{query}\n\n"
+        f"Evidence:\n\n"
         + "\n\n---\n\n".join(evidence_blocks)
         + unsupported
+    )
+
+
+def _build_retry_prompt(answer: str, hits: list[RetrievalHit], errors: list[str]) -> str:
+    valid_ids = "\n".join(f"- {hit.provenance}" for hit in hits)
+    return (
+        "Fix invalid citations in the answer below.\n"
+        f"Valid citation IDs:\n{valid_ids}\n\n"
+        f"Citation errors:\n" + "\n".join(f"- {error}" for error in errors) + "\n\n"
+        f"Prior answer:\n{answer}\n\n"
+        "Return the corrected answer only."
     )
 
 

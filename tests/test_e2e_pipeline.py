@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock
 
+from research_assistant.citations.styles import CitationStyle
 from research_assistant.config import Settings
 from research_assistant.models import (
     ActiveResearchResult,
@@ -59,27 +60,20 @@ def test_e2e_pipeline_with_mocked_services(tmp_path):
         subqueries=["transformer attention mechanism"],
     )
 
-    synthesizer = MagicMock()
-    synthesizer.synthesize.return_value = (
-        "Transformer attention uses scaled dot-product attention "
-        "[arXiv:2407.08608 | Chunk 0].",
-        True,
-        [],
-    )
-
     orchestrator = ResearchOrchestrator(
         pipeline=pipeline,
         llm=llm,
         query_processor=query_processor,
-        synthesizer=synthesizer,
     )
 
-    response = orchestrator.answer("What is transformer attention?")
+    response = orchestrator.answer(
+        "What is transformer attention?",
+        citation_style=CitationStyle.MLA9,
+    )
 
     assert response.sufficient is True
     assert response.citations_valid is True
+    assert response.answer.startswith("References")
     assert "2407.08608" in response.answer
-    pipeline.run.assert_called_once_with("transformer attention mechanism")
-    synthesizer.synthesize.assert_called_once()
-    synthesis_hits = synthesizer.synthesize.call_args.args[1]
-    assert len(synthesis_hits) == 1
+    pipeline.run.assert_called_once()
+    assert pipeline.run.call_args.args[0] == "transformer attention mechanism"

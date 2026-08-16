@@ -95,6 +95,8 @@ class RetrievalHit(BaseModel):
     section: str | None = None
     page: int | None = None
     chunk_index: int
+    authors: list[str] = Field(default_factory=list)
+    published_date: str | None = None
     dense_rank: int | None = None
     sparse_rank: int | None = None
     rrf_score: float | None = None
@@ -122,6 +124,61 @@ class ArxivPaper(BaseModel):
     updated_date: str | None = None
     pdf_url: str
     categories: list[str] = Field(default_factory=list)
+
+
+class DiscoveredPaper(BaseModel):
+    """Paper metadata from any discovery source."""
+
+    source: str
+    external_id: str
+    title: str
+    authors: list[str] = Field(default_factory=list)
+    abstract: str = ""
+    published_date: str | None = None
+    pdf_url: str | None = None
+    landing_url: str | None = None
+    doi: str | None = None
+    arxiv_id: str | None = None
+    categories: list[str] = Field(default_factory=list)
+
+    @property
+    def document_id(self) -> str:
+        if self.arxiv_id:
+            from research_assistant.storage.metadata_store import MetadataStore
+
+            return MetadataStore.normalize_arxiv_id(self.arxiv_id)
+        return f"{self.source}:{self.external_id}"
+
+    @property
+    def ingestible(self) -> bool:
+        return bool(self.arxiv_id and self.pdf_url)
+
+    def to_arxiv_paper(self) -> ArxivPaper | None:
+        if not self.ingestible or not self.arxiv_id or not self.pdf_url:
+            return None
+        return ArxivPaper(
+            arxiv_id=self.arxiv_id,
+            title=self.title,
+            authors=self.authors,
+            abstract=self.abstract,
+            published_date=self.published_date,
+            pdf_url=self.pdf_url,
+            categories=self.categories,
+        )
+
+
+class ExternalCitation(BaseModel):
+    """Bibliographic record from an external discovery source."""
+
+    source: str
+    source_label: str
+    title: str
+    authors: list[str] = Field(default_factory=list)
+    published_date: str | None = None
+    url: str
+    doi: str | None = None
+    arxiv_id: str | None = None
+    relevance_score: float = 0.0
 
 
 class HybridRetrieveResult(BaseModel):
@@ -156,6 +213,8 @@ class DiscoveryRoundResult(BaseModel):
     papers_selected: int
     papers_ingested: int
     ingestion_results: list[IngestionResult] = Field(default_factory=list)
+    external_citations: list[ExternalCitation] = Field(default_factory=list)
+    discovered_by_source: dict[str, int] = Field(default_factory=dict)
 
 
 class ActiveResearchResult(BaseModel):
@@ -165,6 +224,7 @@ class ActiveResearchResult(BaseModel):
     discovery_rounds: list[DiscoveryRoundResult] = Field(default_factory=list)
     papers_discovered: int = 0
     papers_ingested: int = 0
+    external_citations: list[ExternalCitation] = Field(default_factory=list)
     insufficient_message: str | None = None
 
     @property
@@ -181,7 +241,9 @@ class ResearchResponse(BaseModel):
     answer: str
     citations_valid: bool = True
     citation_errors: list[str] = Field(default_factory=list)
+    citation_style: str = "internal"
     subquery_results: list[ActiveResearchResult] = Field(default_factory=list)
     evidence_hits: list[RetrievalHit] = Field(default_factory=list)
+    external_citations: list[ExternalCitation] = Field(default_factory=list)
     sufficient: bool = False
     insufficient_message: str | None = None

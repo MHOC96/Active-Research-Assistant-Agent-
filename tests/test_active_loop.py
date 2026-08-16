@@ -6,6 +6,7 @@ import pytest
 
 from research_assistant.models import (
     ArxivPaper,
+    DiscoveredPaper,
     DocumentStatus,
     HybridRetrieveResult,
     IngestionResult,
@@ -13,6 +14,21 @@ from research_assistant.models import (
     SufficiencyResult,
 )
 from research_assistant.pipeline.active_loop import ActiveLiteraturePipeline
+
+
+def _arxiv_discovered(paper: ArxivPaper) -> DiscoveredPaper:
+    return DiscoveredPaper(
+        source="arxiv",
+        external_id=paper.arxiv_id,
+        title=paper.title,
+        authors=paper.authors,
+        abstract=paper.abstract,
+        published_date=paper.published_date,
+        pdf_url=paper.pdf_url,
+        landing_url=f"https://arxiv.org/abs/{paper.arxiv_id}",
+        arxiv_id=paper.arxiv_id,
+        categories=paper.categories,
+    )
 
 
 def _retrieval(query: str, sufficient: bool, top_score: float = 0.8) -> HybridRetrieveResult:
@@ -57,7 +73,7 @@ def test_pipeline_returns_immediately_when_sufficient():
     assert result.sufficient is True
     assert result.discovery_rounds == []
     retriever.retrieve.assert_called_once()
-    pipeline.discovery.search_arxiv.assert_not_called()
+    pipeline.discovery.search_by_source.assert_not_called()
 
 
 def test_pipeline_discovers_ingests_and_reruns():
@@ -68,14 +84,13 @@ def test_pipeline_discovers_ingests_and_reruns():
     ]
 
     discovery = MagicMock()
-    discovery.search_arxiv.return_value = [
-        ArxivPaper(
-            arxiv_id="2407.08608",
-            title="Graph RAG Survey",
-            abstract="Graph RAG latency tradeoffs.",
-            pdf_url="https://arxiv.org/pdf/2407.08608.pdf",
-        )
-    ]
+    arxiv_paper = ArxivPaper(
+        arxiv_id="2407.08608",
+        title="Graph RAG Survey",
+        abstract="Graph RAG latency tradeoffs.",
+        pdf_url="https://arxiv.org/pdf/2407.08608.pdf",
+    )
+    discovery.search_by_source.return_value = {"arxiv": [_arxiv_discovered(arxiv_paper)]}
 
     ingestion_worker = MagicMock()
     ingestion_worker.ingest_pdf_document.return_value = IngestionResult(
@@ -110,7 +125,7 @@ def test_pipeline_reports_insufficient_after_max_rounds():
     retriever.retrieve.return_value = _retrieval("unknown topic", sufficient=False, top_score=0.2)
 
     discovery = MagicMock()
-    discovery.search_arxiv.return_value = []
+    discovery.search_by_source.return_value = {}
 
     pipeline = ActiveLiteraturePipeline(
         retriever=retriever,
