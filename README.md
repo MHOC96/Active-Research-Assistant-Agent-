@@ -2,7 +2,7 @@
 
 An **agentic hybrid-retrieval RAG pipeline** for academic literature discovery, layout-aware PDF ingestion, persistent indexing, and **citation-ready reference output**.
 
-Unlike static RAG systems that only search a fixed corpus, this assistant can **discover new papers and web sources**, ingest arXiv PDFs during a session, re-run retrieval, and return formatted references grouped by source — or explicitly report when evidence is insufficient.
+Unlike static RAG systems that only search a fixed corpus, this assistant can **discover new papers and web sources**, ingest arXiv PDFs during a session, re-run retrieval, and return formatted references grouped by source — or explicitly report when evidence is insufficient. Paste a paragraph to get per-claim citations, or ask a research question to discover academic and web sources.
 
 For the full engineering specification, see [AGENTS.md](./AGENTS.md).
 
@@ -14,6 +14,8 @@ For the full engineering specification, see [AGENTS.md](./AGENTS.md).
 - **Cross-encoder reranking** — FlashRank (`ms-marco-MiniLM-L-12-v2`) on CPU
 - **Evidence sufficiency gate** — triggers active discovery when local retrieval confidence is too low
 - **Multi-source discovery** — arXiv, OpenAlex, Semantic Scholar, and web search (DuckDuckGo)
+- **Paste-to-cite** — paste a paragraph; the system splits it into focused search queries per claim/sentence
+- **Corporate query routing** — vendor/enterprise queries (e.g. ServiceNow) prioritize web discovery and skip irrelevant arXiv ingestion
 - **Grouped references** — top relevant citation per source, in MLA/APA/IEEE/Harvard/Chicago styles
 - **Web & corporate citations** — documentation pages cite as author–date, e.g. `(ServiceNow, 2023)`
 - **References-only output** — returns formatted bibliographies (no LLM synthesis by default)
@@ -31,8 +33,8 @@ For the full engineering specification, see [AGENTS.md](./AGENTS.md).
 
 ```mermaid
 flowchart TD
-    Q[User Query] --> O[Orchestrator<br/>Groq Llama 3.3 70B]
-    O --> N[Query Normalization /<br/>Classification / Decomposition]
+    Q[User Query or<br/>Pasted Paragraph] --> O[Orchestrator<br/>Groq Llama 3.3 70B]
+    O --> N[Query Analysis<br/>Question / Paste-to-Cite / Decomposition]
     N --> H[Hybrid Retrieval]
     H --> D[ChromaDB Dense]
     H --> S[SQLite FTS5 Sparse]
@@ -61,6 +63,8 @@ flowchart TD
 - **arXiv** — PDFs are downloaded, parsed, and indexed locally
 - **OpenAlex / Semantic Scholar** — metadata citations; arXiv-linked papers may still be ingested
 - **Web** — citation metadata only (vendor docs, product pages, etc.); not ingested into the index
+- **Corporate queries** — routes to web + academic metadata; skips arXiv PDF ingestion for vendor/product topics
+- **Pasted prose** — decomposed into 2–4 short search queries (one per sentence/claim) for better citation accuracy
 
 ---
 
@@ -121,6 +125,8 @@ All settings load from `.env`. Key variables:
 | `OPENALEX_MAILTO` | Email for OpenAlex polite pool (recommended) |
 | `SEMANTIC_SCHOLAR_API_KEY` | Optional Semantic Scholar API key |
 | `CITATION_STYLE` | Default output style (default: `mla9`) |
+| `MAX_SUBQUERIES` | Max decomposed queries for complex/pasted input (default: `5`) |
+| `SKIP_QUERY_LLM_FOR_SIMPLE` | Skip Groq for short questions (default: `true`) |
 
 See [`.env.example`](./.env.example) for the complete list.
 
@@ -168,9 +174,19 @@ Open **http://127.0.0.1:7860** in your browser.
 The UI includes:
 - Citation style selection (MLA, APA, IEEE, etc.)
 - Fast mode for quicker first results
-- Query history with cached results (click to reload)
+- Query history with cached results (click to reload, select/remove entries)
 - Cancel in-flight requests
 - Copy and download formatted references
+
+### Paste a paragraph to cite
+
+Paste multi-sentence prose (not a question) to find sources for each claim:
+
+```bash
+research-assistant --citation-style apa7 "Cloud computing architectures rely on containerization to package applications with their complete runtime dependencies. Container engines enable horizontal scaling compared to virtualization. Orchestration frameworks handle rolling updates and self-healing."
+```
+
+The pipeline detects pasted prose, extracts focused search queries per sentence, and returns grouped references from all discovery sources. Low-relevance indexed hits are filtered out automatically.
 
 ### Ask a research question (CLI)
 
@@ -252,11 +268,11 @@ src/research_assistant/
 ├── cli.py                  # CLI entry point
 ├── bootstrap.py            # Component wiring
 ├── config.py               # Environment settings
-├── orchestrator/           # Groq agent: query analysis + reference formatting
+├── orchestrator/           # Groq agent, paste-to-cite, reference formatting
 ├── retrieval/              # Hybrid dense + sparse retrieval, RRF
 ├── reranking/              # FlashRank cross-encoder
 ├── sufficiency/            # Evidence sufficiency gate
-├── discovery/              # arXiv, OpenAlex, Semantic Scholar, web search
+├── discovery/              # arXiv, OpenAlex, Semantic Scholar, web, query intent
 ├── ingestion/              # Download, parse, chunk, embed, index
 ├── pipeline/               # Active literature loop
 ├── storage/                # ChromaDB, FTS5, metadata store
@@ -272,7 +288,7 @@ data/                       # Created at runtime (gitignored)
 ├── metadata.db             # Document ingestion state
 └── downloads/              # Cached PDFs
 
-tests/                      # 116 unit and integration tests
+tests/                      # 123 unit and integration tests
 ```
 
 ---
@@ -281,7 +297,7 @@ tests/                      # 116 unit and integration tests
 
 ```bash
 pytest
-pytest -v tests/test_web_discovery.py   # run a specific module
+pytest -v tests/test_paste_to_cite.py   # run a specific module
 ```
 
 ---
@@ -304,11 +320,13 @@ pytest -v tests/test_web_discovery.py   # run a specific module
 
 ## Limitations
 
+- **References only** — returns formatted bibliographies, not synthesized answers with inline citations
 - **arXiv-only ingestion** — only arXiv PDFs are downloaded and indexed; web/OpenAlex/Semantic Scholar provide citation metadata
+- **Paste-to-cite** — finds sources to cite; does not verify that a source supports your exact wording
 - **Web search quality** — depends on DuckDuckGo HTML results; year and publisher are inferred heuristically
 - **First ingestion is slow** — Docling model download + PDF parsing + embedding
 - **High rerank score ≠ guaranteed correctness** — always verify citations against sources
-- **Rate limits** — heavy ingestion can hit Gemini quotas; use `GOOGLE_API_KEYS` for rotation
+- **Rate limits** — heavy ingestion can hit Gemini quotas; use `GOOGLE_API_KEYS` for rotation; Semantic Scholar may rate-limit without an API key
 - **Windows** — Docling requires torch compile disabled (handled automatically in `parser.py`)
 
 ---
@@ -324,7 +342,7 @@ All five core phases are implemented on `main`, plus UI and multi-source discove
 | 3 | Ingestion — secure downloader, Docling parser, chunker, transactional worker |
 | 4 | Active discovery — multi-source search, deduplication, bounded discovery loop |
 | 5 | Orchestrator — Groq agent, reference formatting, end-to-end CLI |
-| 6+ | Web UI, cooperative cancellation, token efficiency, web/corporate citations |
+| 6+ | Web UI, cooperative cancellation, token efficiency, web/corporate citations, paste-to-cite |
 
 ---
 
