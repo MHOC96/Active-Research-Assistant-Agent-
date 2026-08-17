@@ -58,6 +58,7 @@ let progressInterval = null;
 let progressIndex = 0;
 let activeCitationSpans = [];
 let activeSegmentId = null;
+let activeTotalSourceCount = 0;
 
 function loadPreferences() {
   try {
@@ -183,12 +184,14 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
-function renderQueryHighlights(spans) {
+function renderQueryHighlights(spans, { totalSourceCount = 0 } = {}) {
   activeCitationSpans = spans || [];
   activeSegmentId = null;
+  activeTotalSourceCount = totalSourceCount;
 
   if (!activeCitationSpans.length) {
     queryEditor.classList.remove("has-highlights");
+    queryInput.readOnly = false;
     queryBackdrop.innerHTML = "";
     segmentCitations.classList.add("hidden");
     segmentCitations.innerHTML = "";
@@ -201,24 +204,43 @@ function renderQueryHighlights(spans) {
   const sorted = [...activeCitationSpans].sort((a, b) => a.start - b.start);
 
   for (const span of sorted) {
-    if (span.start > cursor) {
-      html += escapeHtml(text.slice(cursor, span.start));
+    const safeStart = Math.max(0, Math.min(span.start, text.length));
+    const safeEnd = Math.max(safeStart, Math.min(span.end, text.length));
+    if (safeStart > cursor) {
+      html += escapeHtml(text.slice(cursor, safeStart));
     }
     const hasCitations = Array.isArray(span.citations) && span.citations.length > 0;
     const className = hasCitations ? "cite-span" : "cite-span cite-span-empty";
-    html += `<mark class="${className}" data-segment-id="${escapeHtml(span.segment_id)}">${escapeHtml(text.slice(span.start, span.end))}</mark>`;
-    cursor = span.end;
+    html += `<mark class="${className}" data-segment-id="${escapeHtml(span.segment_id)}">${escapeHtml(text.slice(safeStart, safeEnd))}</mark>`;
+    cursor = safeEnd;
   }
   html += escapeHtml(text.slice(cursor));
 
   queryBackdrop.innerHTML = html;
   queryEditor.classList.add("has-highlights");
+  queryInput.readOnly = true;
   segmentCitations.classList.add("hidden");
   segmentCitations.innerHTML = "";
+  syncQueryBackdropScroll();
 }
 
 function findSpanAtPosition(position) {
-  return activeCitationSpans.find((span) => position >= span.start && position <= span.end);
+  if (!activeCitationSpans.length) return null;
+
+  const sorted = [...activeCitationSpans].sort((a, b) => a.start - b.start);
+  for (let index = 0; index < sorted.length; index += 1) {
+    const span = sorted[index];
+    const isLast = index === sorted.length - 1;
+    const inRange = isLast
+      ? position >= span.start && position <= span.end
+      : position >= span.start && position < span.end;
+    if (inRange) return span;
+  }
+  return null;
+}
+
+function findSpanById(segmentId) {
+  return activeCitationSpans.find((span) => span.segment_id === segmentId) || null;
 }
 
 function setActiveSegment(segmentId) {
@@ -236,6 +258,16 @@ function renderSegmentCitations(span) {
   }
 
   const citations = span.citations || [];
+  const segmentIndex = activeCitationSpans.findIndex((item) => item.segment_id === span.segment_id);
+  const segmentLabel =
+    segmentIndex >= 0
+      ? `Sentence ${segmentIndex + 1} of ${activeCitationSpans.length}`
+      : "Selected sentence";
+  const totalNote =
+    activeTotalSourceCount > citations.length
+      ? `<p class="segment-citations-meta">${activeTotalSourceCount} total source(s) in Results. Showing ${citations.length} for this sentence.</p>`
+      : "";
+
   const cards =
     citations.length > 0
       ? citations
@@ -259,18 +291,33 @@ function renderSegmentCitations(span) {
         </div>`,
           )
           .join("")
-      : `<p class="segment-citation-empty">No sources found for this segment.</p>`;
+      : `<p class="segment-citation-empty">No sources in the Results list matched this sentence.</p>`;
 
   segmentCitations.innerHTML = `
     <div class="segment-citations-header">
       <div>
         <h3>Citations for selected text</h3>
-        <p>${escapeHtml(span.text)}</p>
+        <p>"${escapeHtml(span.text)}"</p>
+        ${totalNote}
       </div>
+      <span class="segment-citation-count">${citations.length} source(s)</span>
     </div>
+    <p class="segment-citations-meta">${escapeHtml(segmentLabel)} · Search: ${escapeHtml(span.search_query || "")}</p>
     ${cards}
   `;
   segmentCitations.classList.remove("hidden");
+}
+
+function showSegmentById(segmentId) {
+  const span = findSpanById(segmentId);
+  if (!span) {
+    setActiveSegment(null);
+    segmentCitations.classList.add("hidden");
+    return;
+  }
+  setActiveSegment(span.segment_id);
+  renderSegmentCitations(span);
+  segmentCitations.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 function showSegmentAtPosition(position) {
@@ -280,8 +327,7 @@ function showSegmentAtPosition(position) {
     segmentCitations.classList.add("hidden");
     return;
   }
-  setActiveSegment(span.segment_id);
-  renderSegmentCitations(span);
+  showSegmentById(span.segment_id);
 }
 
 function clearCitationHighlights() {
@@ -355,7 +401,9 @@ function displayResult(data, { fromCache = false, historyId = null } = {}) {
   rerunBtn.classList.toggle("hidden", !fromCache);
   renderStats(data, { fromCache });
 
-  renderQueryHighlights(data.citation_spans || []);
+  renderQueryHighlights(data.citation_spans || [], {
+    totalSourceCount: data.source_count || 0,
+  });
 
   if (!data.citations_valid && data.citation_errors?.length) {
     showWarnings(data.citation_errors);
@@ -864,14 +912,24 @@ queryInput.addEventListener("input", () => {
   updateCharCount();
   savePreferences();
   if (activeCitationSpans.length) {
+    queryInput.readOnly = false;
     clearCitationHighlights();
   }
 });
 
+queryBackdrop.addEventListener("click", (event) => {
+  const mark = event.target.closest("mark.cite-span");
+  if (!mark?.dataset.segmentId) return;
+  event.preventDefault();
+  showSegmentById(mark.dataset.segmentId);
+});
+
 queryInput.addEventListener("click", () => {
   if (!activeCitationSpans.length) return;
-  const position = queryInput.selectionStart ?? 0;
-  showSegmentAtPosition(position);
+  window.setTimeout(() => {
+    const position = queryInput.selectionStart ?? 0;
+    showSegmentAtPosition(position);
+  }, 0);
 });
 
 queryInput.addEventListener("keyup", () => {

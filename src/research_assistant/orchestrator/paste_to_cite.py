@@ -252,18 +252,31 @@ def _split_sentences(text: str) -> list[str]:
 
 def sentence_spans_in_text(text: str) -> list[tuple[str, int, int]]:
     """Return (sentence, start, end) offsets for each sentence in the original text."""
-    sentences = _split_sentences(text.strip())
+    stripped = text.strip()
+    if not stripped:
+        return []
+
+    lead = text.find(stripped)
+    if lead < 0:
+        lead = 0
+
     spans: list[tuple[str, int, int]] = []
     cursor = 0
-    for sentence in sentences:
-        start = text.find(sentence, cursor)
-        if start == -1:
-            start = text.lower().find(sentence.lower(), cursor)
-        if start == -1:
+    for part in _SENTENCE_SPLIT.split(stripped):
+        sentence = part.strip()
+        if not sentence:
             continue
-        end = start + len(sentence)
-        spans.append((sentence, start, end))
-        cursor = end
+
+        rel_start = stripped.find(sentence, cursor)
+        if rel_start < 0:
+            rel_start = stripped.lower().find(sentence.lower(), cursor)
+        if rel_start < 0:
+            continue
+
+        rel_end = rel_start + len(sentence)
+        spans.append((sentence, lead + rel_start, lead + rel_end))
+        cursor = rel_end
+
     return spans
 
 

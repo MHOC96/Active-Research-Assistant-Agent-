@@ -83,6 +83,70 @@ def test_build_citation_spans_for_pasted_paragraph():
     assert spans[0].start < spans[1].start < spans[2].start
 
 
+def test_build_citation_spans_only_includes_global_references_for_segment():
+    paragraph = (
+        "Cloud computing architectures rely on containerization to package applications "
+        "with their complete runtime dependencies for consistent deployment. "
+        "Container engines enable horizontal scaling and efficient resource utilization "
+        "compared to traditional virtualization approaches."
+    )
+    subqueries = [
+        "cloud computing containerization deployment",
+        "container engines horizontal scaling",
+    ]
+    web_citation = ExternalCitation(
+        source="web",
+        source_label="Web",
+        title="Cloud Containers",
+        url="https://example.com/cloud",
+        publisher="Example",
+        relevance_score=0.8,
+    )
+    openalex_citation = ExternalCitation(
+        source="openalex",
+        source_label="OpenAlex",
+        title="Container Scaling Study",
+        url="https://openalex.org/W1",
+        relevance_score=0.75,
+    )
+    hit = RetrievalHit(
+        chunk_id="2407.08608:0",
+        passage="Graph RAG accuracy results.",
+        document_id="2407.08608",
+        arxiv_id="2407.08608",
+        title="Graph RAG Survey",
+        chunk_index=0,
+        rerank_score=0.91,
+    )
+    results = [
+        ActiveResearchResult(
+            query=subqueries[0],
+            request_id="req-1",
+            retrieval=HybridRetrieveResult(
+                query=subqueries[0],
+                candidates=[hit],
+                sufficiency=SufficiencyResult(sufficient=True, candidate_count=1, top_score=0.91),
+            ),
+            external_citations=[web_citation],
+        ),
+        _result(subqueries[1], external=[openalex_citation]),
+    ]
+
+    spans = build_citation_spans(
+        paragraph,
+        subqueries,
+        results,
+        CitationStyle.APA7,
+        min_rerank_score=0.7,
+        source_hits=[],
+        global_external=[web_citation, openalex_citation],
+    )
+
+    assert spans[0].citations[0].source == "web"
+    assert spans[1].citations[0].source == "openalex"
+    assert all(citation.source != "arxiv" for span in spans for citation in span.citations)
+
+
 def test_build_citation_spans_merges_single_question_with_multiple_subqueries():
     query = "Compare RAG and GraphRAG accuracy"
     subqueries = ["RAG accuracy", "GraphRAG accuracy"]
@@ -114,6 +178,8 @@ def test_build_citation_spans_merges_single_question_with_multiple_subqueries():
         results,
         CitationStyle.APA7,
         min_rerank_score=0.7,
+        source_hits=[hit],
+        global_external=[],
     )
 
     assert len(spans) == 1

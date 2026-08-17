@@ -133,8 +133,9 @@ class ResearchOrchestrator:
             style,
             min_rerank_score=settings.min_rerank_score,
             min_external_relevance_score=settings.min_external_relevance_score,
-            topic_queries=topic_queries,
             min_indexed_topic_score=settings.min_indexed_topic_score,
+            source_hits=source_hits,
+            global_external=external_citations,
         )
 
         answer = format_grouped_references_output(

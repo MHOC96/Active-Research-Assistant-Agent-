@@ -190,6 +190,7 @@ h3 {
 
 .query-editor.has-highlights .query-backdrop {
   display: block;
+  pointer-events: auto;
 }
 
 .query-editor textarea {
@@ -202,6 +203,11 @@ h3 {
   color: transparent;
   caret-color: var(--text);
   -webkit-text-fill-color: transparent;
+  pointer-events: none;
+}
+
+.query-editor.has-highlights {
+  cursor: pointer;
 }
 
 .query-backdrop mark.cite-span {
@@ -210,6 +216,7 @@ h3 {
   border-radius: 4px;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
+  cursor: pointer;
 }
 
 .query-backdrop mark.cite-span-empty {
@@ -219,10 +226,6 @@ h3 {
 .query-backdrop mark.cite-span.active {
   background: rgba(79, 140, 255, 0.42);
   outline: 1px solid rgba(124, 176, 255, 0.8);
-}
-
-.query-editor.has-highlights {
-  cursor: text;
 }
 
 .segment-citations {
@@ -254,6 +257,25 @@ h3 {
   margin: 4px 0 0;
   color: var(--muted);
   font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.segment-citations-meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-top: 6px;
+}
+
+.segment-citation-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(79, 140, 255, 0.14);
+  color: #cfe0ff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .segment-citation-card {
