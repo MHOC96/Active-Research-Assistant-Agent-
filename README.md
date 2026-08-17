@@ -348,7 +348,7 @@ All five core phases are implemented on `main`, plus UI and multi-source discove
 
 ## License
 
-No license file is included yet. Add one before distributing or reusing this code.
+This project is licensed under the MIT License — see [LICENSE](./LICENSE) for details.
 
 ---
 
