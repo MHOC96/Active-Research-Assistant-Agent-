@@ -19,7 +19,7 @@ For the full engineering specification, see [AGENTS.md](./AGENTS.md).
 - **Grouped references** — top relevant citation per source, in MLA/APA/IEEE/Harvard/Chicago styles
 - **Web & corporate citations** — documentation pages cite as author–date, e.g. `(ServiceNow, 2023)`
 - **References-only output** — returns formatted bibliographies (no LLM synthesis by default)
-- **Local web UI** — FastAPI app with query history, cancel, copy/download, and fast mode
+- **Local web UI** — FastAPI app with query history, cancel, copy/download, bundle export, and fast mode
 - **Layout-aware ingestion** — Docling parsing with section-aware chunking and structured metadata
 - **Gemini API key rotation** — automatic fallback across keys on rate limits (429 / quota)
 - **Cooperative cancellation** — stop in-flight requests from the UI or CLI
@@ -118,6 +118,8 @@ All settings load from `.env`. Key variables:
 | `GOOGLE_API_KEYS` | Comma-separated fallback keys for rate-limit rotation |
 | `GEMINI_EMBEDDING_MODEL` | Default: `gemini-embedding-001` (768-dim) |
 | `MIN_RERANK_SCORE` | Sufficiency threshold (default: `0.70`) |
+| `MIN_EXTERNAL_RELEVANCE_SCORE` | Minimum topic overlap for OpenAlex/web citations (default: `0.35`) |
+| `MIN_INDEXED_TOPIC_SCORE` | Minimum topic overlap for indexed arXiv hits in output (default: `0.30`) |
 | `DISCOVERY_SOURCES` | Comma-separated sources (default: `arxiv,openalex,semantic_scholar,web`) |
 | `DISCOVERY_PER_SOURCE_MAX` | Top hits per source (default: `1`) |
 | `MAX_NEW_DOCUMENTS_PER_QUERY` | Cap on arXiv PDFs ingested per query (default: `3`) |
@@ -177,6 +179,7 @@ The UI includes:
 - Query history with cached results (click to reload, select/remove entries)
 - Cancel in-flight requests
 - Copy and download formatted references
+- **Download bundle** — export query text, references, segment→citation manifest, and cached arXiv PDFs as a zip (also saved under `./data/exports/`)
 
 ### Paste a paragraph to cite
 

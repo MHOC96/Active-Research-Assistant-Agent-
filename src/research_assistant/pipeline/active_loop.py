@@ -144,6 +144,7 @@ class ActiveLiteraturePipeline:
                 query,
                 deduped,
                 max_select=self.settings.max_new_documents_per_query,
+                min_score=self.settings.min_external_relevance_score,
             )
 
         if cancellation is not None:

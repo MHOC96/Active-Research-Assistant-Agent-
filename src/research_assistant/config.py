@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     download_cache_dir: Path = Field(default=Path("./data/downloads"), alias="DOWNLOAD_CACHE_DIR")
     sqlite_sparse_db: Path = Field(default=Path("./data/sparse_index.db"), alias="SQLITE_SPARSE_DB")
     metadata_db: Path = Field(default=Path("./data/metadata.db"), alias="METADATA_DB")
+    exports_dir: Path = Field(default=Path("./data/exports"), alias="EXPORTS_DIR")
 
     # Retrieval / RRF
     rrf_dense_weight: float = Field(default=0.6, alias="RRF_DENSE_WEIGHT")
@@ -61,6 +62,14 @@ class Settings(BaseSettings):
     # Sufficiency
     min_candidates: int = Field(default=1, alias="MIN_CANDIDATES")
     min_rerank_score: float = Field(default=0.70, alias="MIN_RERANK_SCORE")
+    min_external_relevance_score: float = Field(
+        default=0.35,
+        alias="MIN_EXTERNAL_RELEVANCE_SCORE",
+    )
+    min_indexed_topic_score: float = Field(
+        default=0.30,
+        alias="MIN_INDEXED_TOPIC_SCORE",
+    )
 
     # Chunking
     chunk_target_tokens: int = Field(default=700, alias="CHUNK_TARGET_TOKENS")
@@ -101,7 +110,7 @@ class Settings(BaseSettings):
     # Performance
     fast_ingestion: bool = Field(default=False, alias="FAST_INGESTION")
 
-    @field_validator("persist_directory", "download_cache_dir", "sqlite_sparse_db", "metadata_db")
+    @field_validator("persist_directory", "download_cache_dir", "sqlite_sparse_db", "metadata_db", "exports_dir")
     @classmethod
     def resolve_paths(cls, value: Path) -> Path:
         return value.expanduser().resolve()

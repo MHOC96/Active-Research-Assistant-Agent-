@@ -42,6 +42,8 @@ def test_orchestrator_stops_before_subquery_when_cancelled():
     pipeline = MagicMock()
     pipeline.settings.min_candidates = 1
     pipeline.settings.min_rerank_score = 0.7
+    pipeline.settings.min_external_relevance_score = 0.35
+    pipeline.settings.min_indexed_topic_score = 0.30
     pipeline.settings.citation_style = "internal"
     pipeline.settings.final_top_k = 3
 

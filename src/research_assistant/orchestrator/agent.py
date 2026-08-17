@@ -5,11 +5,13 @@ from __future__ import annotations
 import logging
 import uuid
 
+from research_assistant.citations.spans import build_citation_spans
 from research_assistant.citations.styles import (
     CitationStyle,
     format_grouped_references_output,
     parse_citation_style,
 )
+from research_assistant.discovery.relevance import best_hit_relevance, filter_external_citations
 from research_assistant.models import ActiveResearchResult, ExternalCitation, ResearchResponse, RetrievalHit
 from research_assistant.orchestrator.llm import LLMClient
 from research_assistant.orchestrator.query_processor import QueryProcessor
@@ -92,12 +94,19 @@ class ResearchOrchestrator:
         if cancellation is not None:
             cancellation.raise_if_cancelled("references")
 
-        source_hits = [
-            hit
-            for hit in _unique_papers(merged_hits)
-            if (hit.rerank_score or 0) >= self.pipeline.settings.min_rerank_score
-        ]
-        external_citations = _collect_external_citations(subquery_results)
+        settings = self.pipeline.settings
+        topic_queries = [analysis.original_query, *analysis.subqueries]
+
+        source_hits = _filter_indexed_hits(
+            _unique_papers(merged_hits),
+            topic_queries,
+            min_rerank_score=settings.min_rerank_score,
+            min_topic_score=settings.min_indexed_topic_score,
+        )
+        external_citations = filter_external_citations(
+            _collect_external_citations(subquery_results),
+            min_score=settings.min_external_relevance_score,
+        )
 
         if not source_hits and not external_citations:
             message = _references_insufficient_message(unsupported_aspects, overall_sufficiency)
@@ -112,15 +121,28 @@ class ResearchOrchestrator:
                 citation_style=style.value,
                 subquery_results=subquery_results,
                 evidence_hits=merged_hits,
+                citation_spans=[],
                 sufficient=False,
                 insufficient_message=message,
             )
+
+        citation_spans = build_citation_spans(
+            analysis.original_query,
+            analysis.subqueries,
+            subquery_results,
+            style,
+            min_rerank_score=settings.min_rerank_score,
+            min_external_relevance_score=settings.min_external_relevance_score,
+            topic_queries=topic_queries,
+            min_indexed_topic_score=settings.min_indexed_topic_score,
+        )
 
         answer = format_grouped_references_output(
             source_hits,
             external_citations,
             style,
-            source_order=self.pipeline.settings.discovery_source_list,
+            source_order=settings.discovery_source_list,
+            min_external_relevance_score=settings.min_external_relevance_score,
         )
         if not overall_sufficiency.sufficient:
             note = _references_insufficient_message(unsupported_aspects, overall_sufficiency)
@@ -138,6 +160,7 @@ class ResearchOrchestrator:
             subquery_results=subquery_results,
             evidence_hits=merged_hits,
             external_citations=external_citations,
+            citation_spans=citation_spans,
             sufficient=overall_sufficiency.sufficient,
             insufficient_message=None
             if overall_sufficiency.sufficient
@@ -154,6 +177,23 @@ def _merge_hits(hits: list[RetrievalHit]) -> list[RetrievalHit]:
     merged = list(by_id.values())
     merged.sort(key=lambda h: h.rerank_score or 0.0, reverse=True)
     return merged
+
+
+def _filter_indexed_hits(
+    hits: list[RetrievalHit],
+    topic_queries: list[str],
+    *,
+    min_rerank_score: float,
+    min_topic_score: float,
+) -> list[RetrievalHit]:
+    filtered: list[RetrievalHit] = []
+    for hit in hits:
+        if (hit.rerank_score or 0) < min_rerank_score:
+            continue
+        if best_hit_relevance(hit, topic_queries) < min_topic_score:
+            continue
+        filtered.append(hit)
+    return filtered
 
 
 def _collect_external_citations(

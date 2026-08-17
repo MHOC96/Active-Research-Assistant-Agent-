@@ -35,6 +35,7 @@
           <li>If evidence is weak, it searches arXiv, OpenAlex, Semantic Scholar, and the web.</li>
           <li>arXiv PDFs are ingested into your local index; web and index hits become formatted citations.</li>
           <li>Corporate or documentation pages cite as author-date, e.g. (ServiceNow, 2023).</li>
+          <li>Click highlighted sentences in your text to see the citations found for that segment.</li>
           <li>Recent queries are saved locally - click one to instantly reload its result without re-running the pipeline.</li>
           <li>Select history items and use Remove selected to delete saved results you no longer need.</li>
         </ol>
@@ -50,13 +51,18 @@
             <span id="char-count" class="char-count">0 / 8000</span>
           </div>
 
-          <textarea
-            id="query"
-            rows="7"
-            maxlength="8000"
-            placeholder="Paste a paragraph to cite, or ask a research question..."
-            aria-label="Research question or text to cite"
-          ></textarea>
+          <div class="query-editor" id="query-editor">
+            <div id="query-backdrop" class="query-backdrop" aria-hidden="true"></div>
+            <textarea
+              id="query"
+              rows="7"
+              maxlength="8000"
+              placeholder="Paste a paragraph to cite, or ask a research question..."
+              aria-label="Research question or text to cite"
+            ></textarea>
+          </div>
+
+          <div id="segment-citations" class="segment-citations hidden" aria-live="polite"></div>
 
           <div class="examples">
             <span class="examples-label">Try an example:</span>
@@ -96,6 +102,7 @@
               <button id="rerun-btn" class="ghost small hidden" type="button" title="Run pipeline again">Re-run</button>
               <button id="copy-btn" class="ghost small" type="button">Copy</button>
               <button id="download-btn" class="ghost small" type="button">Download</button>
+              <button id="bundle-btn" class="ghost small" type="button" title="Download query, references, manifest, and cached PDFs">Bundle</button>
             </div>
           </div>
 

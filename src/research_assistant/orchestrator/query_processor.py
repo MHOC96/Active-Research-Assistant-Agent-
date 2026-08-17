@@ -36,8 +36,9 @@ CITE_SYSTEM_PROMPT = """Return ONLY JSON:
 
 The user pasted prose they need bibliographic sources for. Create 2-4 focused search queries.
 Rules:
-- Each subquery: 5-12 words, ONE distinct technical concept from the text
-- Use standard terms researchers and docs use (e.g. containerization, Kubernetes, Docker, orchestration)
+- Each subquery: 5-12 words, ONE distinct claim or concept from the text
+- Preserve relationships (e.g. "entrepreneur to manager transition", not just "management")
+- Use standard research terms; avoid generic words alone (management, experience, knowledge, organizational)
 - Do NOT copy full sentences from the input
 - Do NOT answer or summarize the text
 - query_type must be "complex"

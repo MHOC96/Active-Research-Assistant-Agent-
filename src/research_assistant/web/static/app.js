@@ -11,6 +11,9 @@ const EXAMPLE_QUERIES = [
 const PROGRESS_STEPS = ["analyze", "retrieve", "discover", "ingest", "format"];
 
 const queryInput = document.getElementById("query");
+const queryEditor = document.getElementById("query-editor");
+const queryBackdrop = document.getElementById("query-backdrop");
+const segmentCitations = document.getElementById("segment-citations");
 const citationStyleSelect = document.getElementById("citation-style");
 const fastModeInput = document.getElementById("fast-mode");
 const submitBtn = document.getElementById("submit-btn");
@@ -20,6 +23,7 @@ const clearBtn = document.getElementById("clear-btn");
 const rerunBtn = document.getElementById("rerun-btn");
 const copyBtn = document.getElementById("copy-btn");
 const downloadBtn = document.getElementById("download-btn");
+const bundleBtn = document.getElementById("bundle-btn");
 const resultOutput = document.getElementById("result-output");
 const resultToolbar = document.getElementById("result-toolbar");
 const statsRow = document.getElementById("stats-row");
@@ -52,6 +56,8 @@ let selectedHistoryIds = new Set();
 let loadingInterval = null;
 let progressInterval = null;
 let progressIndex = 0;
+let activeCitationSpans = [];
+let activeSegmentId = null;
 
 function loadPreferences() {
   try {
@@ -177,6 +183,116 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
+function renderQueryHighlights(spans) {
+  activeCitationSpans = spans || [];
+  activeSegmentId = null;
+
+  if (!activeCitationSpans.length) {
+    queryEditor.classList.remove("has-highlights");
+    queryBackdrop.innerHTML = "";
+    segmentCitations.classList.add("hidden");
+    segmentCitations.innerHTML = "";
+    return;
+  }
+
+  const text = queryInput.value;
+  let html = "";
+  let cursor = 0;
+  const sorted = [...activeCitationSpans].sort((a, b) => a.start - b.start);
+
+  for (const span of sorted) {
+    if (span.start > cursor) {
+      html += escapeHtml(text.slice(cursor, span.start));
+    }
+    const hasCitations = Array.isArray(span.citations) && span.citations.length > 0;
+    const className = hasCitations ? "cite-span" : "cite-span cite-span-empty";
+    html += `<mark class="${className}" data-segment-id="${escapeHtml(span.segment_id)}">${escapeHtml(text.slice(span.start, span.end))}</mark>`;
+    cursor = span.end;
+  }
+  html += escapeHtml(text.slice(cursor));
+
+  queryBackdrop.innerHTML = html;
+  queryEditor.classList.add("has-highlights");
+  segmentCitations.classList.add("hidden");
+  segmentCitations.innerHTML = "";
+}
+
+function findSpanAtPosition(position) {
+  return activeCitationSpans.find((span) => position >= span.start && position <= span.end);
+}
+
+function setActiveSegment(segmentId) {
+  activeSegmentId = segmentId;
+  queryBackdrop.querySelectorAll(".cite-span").forEach((mark) => {
+    mark.classList.toggle("active", mark.dataset.segmentId === segmentId);
+  });
+}
+
+function renderSegmentCitations(span) {
+  if (!span) {
+    segmentCitations.classList.add("hidden");
+    segmentCitations.innerHTML = "";
+    return;
+  }
+
+  const citations = span.citations || [];
+  const cards =
+    citations.length > 0
+      ? citations
+          .map(
+            (citation) => `
+        <div class="segment-citation-card">
+          <div class="segment-citation-meta">
+            <span class="segment-citation-source">${escapeHtml(citation.source_label || citation.source)}</span>
+          </div>
+          <div>${escapeHtml(citation.reference)}</div>
+          ${
+            citation.in_text
+              ? `<div class="segment-citation-intext">In-text: ${escapeHtml(citation.in_text)}</div>`
+              : ""
+          }
+          ${
+            citation.url && citation.url.startsWith("http")
+              ? `<div class="segment-citation-intext"><a href="${citation.url}" target="_blank" rel="noopener noreferrer">Open source</a></div>`
+              : ""
+          }
+        </div>`,
+          )
+          .join("")
+      : `<p class="segment-citation-empty">No sources found for this segment.</p>`;
+
+  segmentCitations.innerHTML = `
+    <div class="segment-citations-header">
+      <div>
+        <h3>Citations for selected text</h3>
+        <p>${escapeHtml(span.text)}</p>
+      </div>
+    </div>
+    ${cards}
+  `;
+  segmentCitations.classList.remove("hidden");
+}
+
+function showSegmentAtPosition(position) {
+  const span = findSpanAtPosition(position);
+  if (!span) {
+    setActiveSegment(null);
+    segmentCitations.classList.add("hidden");
+    return;
+  }
+  setActiveSegment(span.segment_id);
+  renderSegmentCitations(span);
+}
+
+function clearCitationHighlights() {
+  renderQueryHighlights([]);
+}
+
+function syncQueryBackdropScroll() {
+  queryBackdrop.scrollTop = queryInput.scrollTop;
+  queryBackdrop.scrollLeft = queryInput.scrollLeft;
+}
+
 function formatResultHtml(answer) {
   if (answer.startsWith("INSUFFICIENT_EVIDENCE:")) {
     return `<p class="error-text">${escapeHtml(answer)}</p>`;
@@ -238,6 +354,8 @@ function displayResult(data, { fromCache = false, historyId = null } = {}) {
   resultToolbar.classList.remove("hidden");
   rerunBtn.classList.toggle("hidden", !fromCache);
   renderStats(data, { fromCache });
+
+  renderQueryHighlights(data.citation_spans || []);
 
   if (!data.citations_valid && data.citation_errors?.length) {
     showWarnings(data.citation_errors);
@@ -536,6 +654,7 @@ function buildHistoryEntry(options, data) {
       sufficient: data.sufficient,
       papers_ingested: data.papers_ingested,
       source_count: data.source_count,
+      citation_spans: data.citation_spans || [],
       elapsed_seconds: data.elapsed_seconds,
     },
   };
@@ -552,6 +671,7 @@ function clearDisplayedResult() {
   resultToolbar.classList.add("hidden");
   statsRow.classList.add("hidden");
   rerunBtn.classList.add("hidden");
+  clearCitationHighlights();
   showWarnings([]);
   highlightActiveHistory(null);
 }
@@ -583,6 +703,7 @@ async function runQuery({ force = false } = {}) {
 
   setLoading(true);
   showWarnings([]);
+  clearCitationHighlights();
   viewingCachedResult = false;
   activeHistoryId = null;
   highlightActiveHistory(null);
@@ -655,6 +776,44 @@ function downloadResult() {
   showToast("Download started");
 }
 
+async function downloadBundle() {
+  if (!lastDisplayedState?.data) return;
+
+  const { data } = lastDisplayedState;
+  bundleBtn.disabled = true;
+
+  try {
+    const response = await fetch("/api/export/bundle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: data.query,
+        answer: data.answer,
+        citation_spans: data.citation_spans || [],
+        citation_style: data.citation_style,
+      }),
+    });
+
+    if (!response.ok) {
+      const detail = await response.json().catch(() => ({}));
+      throw new Error(detail.detail || `Export failed (${response.status})`);
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "research-assistant-bundle.zip";
+    link.click();
+    URL.revokeObjectURL(url);
+    showToast("Bundle download started");
+  } catch (error) {
+    showToast(error.message || "Bundle export failed");
+  } finally {
+    bundleBtn.disabled = false;
+  }
+}
+
 function handleCancelRequest() {
   cancelActiveRequest();
 }
@@ -672,6 +831,7 @@ clearBtn.addEventListener("click", () => {
 
 copyBtn.addEventListener("click", copyResult);
 downloadBtn.addEventListener("click", downloadResult);
+bundleBtn.addEventListener("click", downloadBundle);
 
 removeSelectedBtn.addEventListener("click", () => {
   removeHistoryItems([...selectedHistoryIds]);
@@ -703,7 +863,24 @@ helpBtn.addEventListener("click", () => {
 queryInput.addEventListener("input", () => {
   updateCharCount();
   savePreferences();
+  if (activeCitationSpans.length) {
+    clearCitationHighlights();
+  }
 });
+
+queryInput.addEventListener("click", () => {
+  if (!activeCitationSpans.length) return;
+  const position = queryInput.selectionStart ?? 0;
+  showSegmentAtPosition(position);
+});
+
+queryInput.addEventListener("keyup", () => {
+  if (!activeCitationSpans.length) return;
+  const position = queryInput.selectionStart ?? 0;
+  showSegmentAtPosition(position);
+});
+
+queryInput.addEventListener("scroll", syncQueryBackdropScroll);
 
 queryInput.addEventListener("keydown", (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {

@@ -42,18 +42,19 @@ class MultiSourceDiscoveryService:
 
     def search_by_source(self, query: str) -> dict[str, list[DiscoveredPaper]]:
         per_source = self.settings.discovery_per_source_max
+        min_relevance = self.settings.min_external_relevance_score
         results: dict[str, list[DiscoveredPaper]] = {}
         sources = discovery_sources_for_query(query, self.enabled_sources)
         corporate = is_corporate_query(query)
 
         for source in sources:
             papers = self._search_source(source, query)
-            if source == "web":
-                top = papers[:per_source]
-            elif corporate:
-                top = select_top_papers(query, papers, max_select=per_source, min_score=0.2)
-            else:
-                top = select_top_papers(query, papers, max_select=per_source)
+            top = select_top_papers(
+                query,
+                papers,
+                max_select=per_source,
+                min_score=min_relevance,
+            )
             if top:
                 results[source] = top
                 logger.info(
@@ -109,10 +110,11 @@ def select_papers_for_ingestion(
     papers: list[DiscoveredPaper],
     *,
     max_select: int,
+    min_score: float = 0.0,
 ) -> list[DiscoveredPaper]:
     """Select ingestible papers ranked by query relevance."""
     ingestible = [paper for paper in papers if paper.ingestible]
-    return select_top_papers(query, ingestible, max_select=max_select)
+    return select_top_papers(query, ingestible, max_select=max_select, min_score=min_score)
 
 
 def external_citations_from_sources(

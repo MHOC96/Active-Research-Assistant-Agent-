@@ -20,10 +20,10 @@ def _active_result(query: str, sufficient: bool) -> ActiveResearchResult:
         candidates = [
             RetrievalHit(
                 chunk_id="2407.08608:0",
-                passage="Evidence on transformer attention.",
+                passage="Graph RAG accuracy results on benchmark tasks.",
                 document_id="2407.08608",
                 arxiv_id="2407.08608",
-                title="Paper",
+                title="RAG vs GraphRAG accuracy study",
                 chunk_index=0,
                 rerank_score=0.88,
             )
@@ -48,6 +48,8 @@ def test_orchestrator_runs_subqueries_and_returns_references():
     pipeline = MagicMock()
     pipeline.settings.min_candidates = 1
     pipeline.settings.min_rerank_score = 0.7
+    pipeline.settings.min_external_relevance_score = 0.35
+    pipeline.settings.min_indexed_topic_score = 0.30
     pipeline.settings.citation_style = "mla9"
     pipeline.settings.final_top_k = 3
     pipeline.settings.discovery_source_list = ["arxiv", "openalex", "semantic_scholar", "web"]
@@ -86,6 +88,8 @@ def test_orchestrator_marks_insufficient_when_subquery_fails():
     pipeline = MagicMock()
     pipeline.settings.min_candidates = 1
     pipeline.settings.min_rerank_score = 0.7
+    pipeline.settings.min_external_relevance_score = 0.35
+    pipeline.settings.min_indexed_topic_score = 0.30
     pipeline.settings.citation_style = "mla9"
     pipeline.settings.final_top_k = 3
     pipeline.settings.discovery_source_list = ["arxiv", "openalex", "semantic_scholar", "web"]

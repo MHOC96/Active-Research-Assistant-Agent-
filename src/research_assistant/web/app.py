@@ -19,8 +19,9 @@ from pydantic import BaseModel, Field
 from research_assistant.bootstrap import ApplicationContext, build_application
 from research_assistant.citations.styles import list_citation_styles, parse_citation_style
 from research_assistant.config import apply_fast_settings, get_settings
+from research_assistant.export.bundle import build_query_bundle_zip, slugify_query
 from research_assistant.health import validate_configuration, validate_external_services
-from research_assistant.models import ResearchResponse
+from research_assistant.models import CitationSpan, ResearchResponse
 from research_assistant.utils.cancellation import RequestCancelledError, cancellation_registry
 
 logger = logging.getLogger(__name__)
@@ -50,12 +51,20 @@ class QueryResponse(BaseModel):
     papers_ingested: int = 0
     papers_discovered: int = 0
     source_count: int = 0
+    citation_spans: list[CitationSpan] = Field(default_factory=list)
     elapsed_seconds: float
 
 
 class CancelResponse(BaseModel):
     cancelled: bool
     request_id: str
+
+
+class ExportBundleRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=8000)
+    answer: str = Field(min_length=1)
+    citation_spans: list[CitationSpan] = Field(default_factory=list)
+    citation_style: str = "mla9"
 
 
 @asynccontextmanager
@@ -101,6 +110,7 @@ def _build_query_response(response: ResearchResponse, elapsed_seconds: float) ->
         papers_ingested=papers_ingested,
         papers_discovered=papers_discovered,
         source_count=source_count,
+        citation_spans=response.citation_spans,
         elapsed_seconds=elapsed_seconds,
     )
 
@@ -190,6 +200,30 @@ def create_app() -> FastAPI:
             cancellation_registry.unregister(request_id)
 
         return _build_query_response(response, round(time.perf_counter() - started, 2))
+
+    @app.post("/api/export/bundle")
+    async def export_bundle(payload: ExportBundleRequest) -> FileResponse:
+        try:
+            parse_citation_style(payload.citation_style)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        settings = get_settings()
+        settings.exports_dir.mkdir(parents=True, exist_ok=True)
+        zip_path = build_query_bundle_zip(
+            query=payload.query.strip(),
+            answer=payload.answer,
+            citation_spans=payload.citation_spans,
+            citation_style=payload.citation_style,
+            download_cache_dir=settings.download_cache_dir,
+            exports_dir=settings.exports_dir,
+        )
+        filename = f"{slugify_query(payload.query)}-bundle.zip"
+        return FileResponse(
+            zip_path,
+            media_type="application/zip",
+            filename=filename,
+        )
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     return app

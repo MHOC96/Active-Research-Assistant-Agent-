@@ -32,3 +32,16 @@ def test_heuristic_citation_queries_splits_by_sentence():
     assert "orchestration" in joined or "rolling updates" in joined
     assert "virtualization" in joined or "scaling" in joined
     assert len(queries[0]) < len(CLOUD_PARAGRAPH)
+
+
+def test_heuristic_citation_queries_preserves_entrepreneur_manager_claim():
+    paragraph = (
+        "Business owners are entrepreneurs until they become managers. "
+        "When they become managers, they will feel frustrated because they will need to deal "
+        "with new problems like managerial problems. "
+        "And management is not a simple task. It needs knowledge and experience."
+    )
+    queries = heuristic_citation_queries(paragraph, max_queries=4)
+
+    assert any("entrepreneur manager transition" in query for query in queries)
+    assert not any(query == "management simple task" for query in queries)

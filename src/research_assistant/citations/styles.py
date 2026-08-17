@@ -72,6 +72,7 @@ def format_grouped_references_output(
     style: CitationStyle,
     *,
     source_order: list[str] | None = None,
+    min_external_relevance_score: float = 0.0,
 ) -> str:
     """Return references grouped by discovery source (indexed arXiv + external indexes)."""
     sections: list[tuple[str, str]] = []
@@ -84,6 +85,8 @@ def format_grouped_references_output(
 
     by_source: dict[str, list[ExternalCitation]] = {}
     for citation in external_citations:
+        if citation.relevance_score < min_external_relevance_score:
+            continue
         by_source.setdefault(citation.source, []).append(citation)
 
     order = source_order or list(by_source.keys())

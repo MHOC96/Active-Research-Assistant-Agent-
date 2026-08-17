@@ -168,6 +168,131 @@ h3 {
   font-size: 0.82rem;
 }
 
+.query-editor {
+  position: relative;
+}
+
+.query-backdrop {
+  display: none;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: 14px;
+  padding: 14px 16px;
+  font: inherit;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: var(--text);
+  z-index: 1;
+}
+
+.query-editor.has-highlights .query-backdrop {
+  display: block;
+}
+
+.query-editor textarea {
+  position: relative;
+  z-index: 2;
+}
+
+.query-editor.has-highlights textarea {
+  background: transparent;
+  color: transparent;
+  caret-color: var(--text);
+  -webkit-text-fill-color: transparent;
+}
+
+.query-backdrop mark.cite-span {
+  background: rgba(79, 140, 255, 0.22);
+  color: var(--text);
+  border-radius: 4px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.query-backdrop mark.cite-span-empty {
+  background: rgba(148, 163, 184, 0.14);
+}
+
+.query-backdrop mark.cite-span.active {
+  background: rgba(79, 140, 255, 0.42);
+  outline: 1px solid rgba(124, 176, 255, 0.8);
+}
+
+.query-editor.has-highlights {
+  cursor: text;
+}
+
+.segment-citations {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(124, 176, 255, 0.35);
+  border-radius: 14px;
+  background: rgba(79, 140, 255, 0.08);
+}
+
+.segment-citations.hidden {
+  display: none;
+}
+
+.segment-citations-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.segment-citations-header h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.segment-citations-header p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.segment-citation-card {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(11, 18, 32, 0.72);
+  border: 1px solid var(--panel-border);
+  margin-top: 10px;
+}
+
+.segment-citation-card:first-of-type {
+  margin-top: 0;
+}
+
+.segment-citation-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.segment-citation-source {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9ec1ff;
+}
+
+.segment-citation-intext {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-top: 8px;
+}
+
+.segment-citation-empty {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 textarea,
 select {
   width: 100%;

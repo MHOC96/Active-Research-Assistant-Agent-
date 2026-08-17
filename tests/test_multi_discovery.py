@@ -33,6 +33,7 @@ def test_search_by_source_returns_top_per_source():
     settings.discovery_source_list = ["arxiv", "openalex"]
     settings.discovery_per_source_max = 1
     settings.discovery_max_results = 5
+    settings.min_external_relevance_score = 0.0
 
     arxiv = MagicMock()
     arxiv.search_arxiv.return_value = [_arxiv_paper()]
@@ -59,6 +60,7 @@ def test_search_by_source_skips_empty_sources():
     settings.discovery_source_list = ["arxiv", "openalex"]
     settings.discovery_per_source_max = 1
     settings.discovery_max_results = 5
+    settings.min_external_relevance_score = 0.0
 
     arxiv = MagicMock()
     arxiv.search_arxiv.return_value = []

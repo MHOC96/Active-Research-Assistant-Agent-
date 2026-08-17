@@ -17,6 +17,8 @@ def test_orchestrator_returns_web_citations_when_local_index_empty():
     pipeline = MagicMock()
     pipeline.settings.min_candidates = 1
     pipeline.settings.min_rerank_score = 0.7
+    pipeline.settings.min_external_relevance_score = 0.35
+    pipeline.settings.min_indexed_topic_score = 0.30
     pipeline.settings.citation_style = "apa7"
     pipeline.settings.final_top_k = 3
     pipeline.settings.discovery_source_list = ["web"]

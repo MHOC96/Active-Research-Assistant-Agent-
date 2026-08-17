@@ -142,7 +142,62 @@ _PRIORITY_PHRASES = (
     "devops",
     "ephemeral",
     "cluster administration",
+    "entrepreneur manager transition",
+    "founder manager",
+    "entrepreneurial leadership",
+    "small business management",
+    "managerial skills",
+    "owner operator",
 )
+
+_GENERIC_QUERY_TERMS = frozenset(
+    {
+        "management",
+        "manager",
+        "managers",
+        "managerial",
+        "business",
+        "owners",
+        "owner",
+        "simple",
+        "task",
+        "experience",
+        "knowledge",
+        "problems",
+        "problem",
+        "organizational",
+        "structure",
+        "frustrated",
+        "become",
+        "until",
+        "because",
+        "needs",
+        "need",
+        "feel",
+        "deal",
+        "they",
+        "will",
+        "like",
+        "when",
+        "entrepreneurs",
+        "entrepreneur",
+    }
+)
+
+_CLAIM_PATTERNS: list[tuple[re.Pattern[str], str]] = [
+    (
+        re.compile(r"\bentrepreneur\w*\b.*\bmanager\w*\b", re.IGNORECASE),
+        "entrepreneur manager transition",
+    ),
+    (
+        re.compile(r"\bfounder\w*\b.*\bmanager\w*\b", re.IGNORECASE),
+        "founder manager transition",
+    ),
+    (
+        re.compile(r"\bmanagerial\s+skills?\b", re.IGNORECASE),
+        "managerial skills development",
+    ),
+]
 
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
 
@@ -195,9 +250,30 @@ def _split_sentences(text: str) -> list[str]:
     return parts or [text.strip()]
 
 
+def sentence_spans_in_text(text: str) -> list[tuple[str, int, int]]:
+    """Return (sentence, start, end) offsets for each sentence in the original text."""
+    sentences = _split_sentences(text.strip())
+    spans: list[tuple[str, int, int]] = []
+    cursor = 0
+    for sentence in sentences:
+        start = text.find(sentence, cursor)
+        if start == -1:
+            start = text.lower().find(sentence.lower(), cursor)
+        if start == -1:
+            continue
+        end = start + len(sentence)
+        spans.append((sentence, start, end))
+        cursor = end
+    return spans
+
+
 def _sentence_to_search_query(sentence: str) -> str:
     lower = sentence.lower()
     selected: list[str] = []
+
+    for pattern, phrase in _CLAIM_PATTERNS:
+        if pattern.search(sentence) and phrase not in selected:
+            selected.append(phrase)
 
     for phrase in _PRIORITY_PHRASES:
         if phrase in lower and phrase not in selected:
@@ -207,7 +283,7 @@ def _sentence_to_search_query(sentence: str) -> str:
     ranked: list[str] = []
     for word in words:
         token = word.lower()
-        if len(token) <= 3 or token in _STOPWORDS:
+        if len(token) <= 3 or token in _STOPWORDS or token in _GENERIC_QUERY_TERMS:
             continue
         if token in selected or any(token in phrase for phrase in selected):
             continue
@@ -215,9 +291,9 @@ def _sentence_to_search_query(sentence: str) -> str:
 
     ranked.sort(key=len, reverse=True)
     for token in ranked:
-        if len(selected) >= 8:
+        if len(selected) >= 6:
             break
         if token not in selected:
             selected.append(token)
 
-    return " ".join(selected[:8])
+    return " ".join(selected[:6])

@@ -183,6 +183,30 @@ class ExternalCitation(BaseModel):
     relevance_score: float = 0.0
 
 
+class CitationSourceItem(BaseModel):
+    """Formatted citation attached to a text segment."""
+
+    id: str
+    source: str
+    source_label: str
+    title: str
+    url: str
+    reference: str
+    in_text: str | None = None
+    arxiv_id: str | None = None
+
+
+class CitationSpan(BaseModel):
+    """A highlighted text range and its related citations."""
+
+    segment_id: str
+    text: str
+    start: int
+    end: int
+    search_query: str
+    citations: list[CitationSourceItem] = Field(default_factory=list)
+
+
 class HybridRetrieveResult(BaseModel):
     query: str
     candidates: list[RetrievalHit]
@@ -247,5 +271,6 @@ class ResearchResponse(BaseModel):
     subquery_results: list[ActiveResearchResult] = Field(default_factory=list)
     evidence_hits: list[RetrievalHit] = Field(default_factory=list)
     external_citations: list[ExternalCitation] = Field(default_factory=list)
+    citation_spans: list[CitationSpan] = Field(default_factory=list)
     sufficient: bool = False
     insufficient_message: str | None = None
