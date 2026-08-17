@@ -10,6 +10,11 @@ from pydantic import BaseModel, Field
 
 from research_assistant.config import Settings, get_settings
 from research_assistant.orchestrator.llm import LLMClient
+from research_assistant.orchestrator.paste_to_cite import (
+    heuristic_citation_queries,
+    is_paste_to_cite,
+    summarize_paste_topic,
+)
 from research_assistant.utils.token_efficiency import (
     cap_subqueries,
     heuristic_normalize_query,
@@ -24,6 +29,18 @@ Rules:
 - complex: minimal subqueries that cover all required evidence aspects
 - preserve technical tokens and identifiers
 - do not answer the question
+"""
+
+CITE_SYSTEM_PROMPT = """Return ONLY JSON:
+{"normalized_query":"brief topic label","query_type":"complex","subqueries":["..."]}
+
+The user pasted prose they need bibliographic sources for. Create 2-4 focused search queries.
+Rules:
+- Each subquery: 5-12 words, ONE distinct technical concept from the text
+- Use standard terms researchers and docs use (e.g. containerization, Kubernetes, Docker, orchestration)
+- Do NOT copy full sentences from the input
+- Do NOT answer or summarize the text
+- query_type must be "complex"
 """
 
 
@@ -44,6 +61,9 @@ class QueryProcessor:
 
     def analyze(self, query: str) -> QueryAnalysis:
         stripped = query.strip()
+        if is_paste_to_cite(stripped):
+            return self._analyze_paste_to_cite(stripped)
+
         if self.settings.skip_query_llm_for_simple and is_likely_simple_query(stripped):
             normalized = heuristic_normalize_query(stripped)
             return QueryAnalysis(
@@ -66,6 +86,29 @@ class QueryProcessor:
         analysis = _build_analysis(stripped, raw, self.settings.max_subqueries)
         self._analysis_cache_set(cache_key, analysis)
         return analysis
+
+    def _analyze_paste_to_cite(self, text: str) -> QueryAnalysis:
+        fallback_queries = heuristic_citation_queries(text, self.settings.max_subqueries)
+        fallback = QueryAnalysis(
+            original_query=text,
+            normalized_query=summarize_paste_topic(text, fallback_queries),
+            query_type="complex" if len(fallback_queries) > 1 else "simple",
+            subqueries=fallback_queries,
+        )
+
+        try:
+            raw = self.llm.complete(
+                system=CITE_SYSTEM_PROMPT,
+                user=text,
+                max_tokens=self.settings.groq_query_max_output_tokens,
+            )
+            analysis = _build_analysis(text, raw, self.settings.max_subqueries)
+            if analysis.query_type == "complex" and len(analysis.subqueries) >= 1:
+                return analysis
+        except Exception:
+            pass
+
+        return fallback
 
     def _analysis_cache_get(self, key: str) -> QueryAnalysis | None:
         if self.settings.query_analysis_cache_size <= 0:

@@ -92,7 +92,11 @@ class ResearchOrchestrator:
         if cancellation is not None:
             cancellation.raise_if_cancelled("references")
 
-        source_hits = _unique_papers(merged_hits)
+        source_hits = [
+            hit
+            for hit in _unique_papers(merged_hits)
+            if (hit.rerank_score or 0) >= self.pipeline.settings.min_rerank_score
+        ]
         external_citations = _collect_external_citations(subquery_results)
 
         if not source_hits and not external_citations:

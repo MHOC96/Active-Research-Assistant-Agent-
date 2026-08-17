@@ -50,3 +50,49 @@ def test_analyze_complex_query():
 
     assert analysis.query_type == "complex"
     assert len(analysis.subqueries) == 4
+
+
+def test_analyze_pasted_paragraph_uses_citation_queries():
+    payload = json.dumps(
+        {
+            "normalized_query": "cloud containerization orchestration",
+            "query_type": "complex",
+            "subqueries": [
+                "cloud computing containerization deployment",
+                "container engines virtualization resource utilization",
+                "kubernetes orchestration rolling updates",
+            ],
+        }
+    )
+    llm = MockLLM(payload)
+    processor = QueryProcessor(llm, settings=Settings(skip_query_llm_for_simple=False))
+
+    paragraph = (
+        "Cloud computing architectures rely on containerization to package applications "
+        "with their complete runtime dependencies. Container engines enable horizontal "
+        "scaling compared to virtualization. Orchestration frameworks handle rolling updates."
+    )
+    analysis = processor.analyze(paragraph)
+
+    assert analysis.query_type == "complex"
+    assert len(analysis.subqueries) == 3
+    assert llm.calls[0]["system"].startswith("Return ONLY JSON")
+    assert len(analysis.subqueries[0]) < len(paragraph)
+
+
+def test_analyze_pasted_paragraph_falls_back_to_heuristics():
+    class FailingLLM:
+        def complete(self, **_kwargs):
+            raise RuntimeError("offline")
+
+    processor = QueryProcessor(FailingLLM(), settings=Settings(skip_query_llm_for_simple=False))
+    paragraph = (
+        "Cloud computing architectures rely on containerization to package applications "
+        "with their complete runtime dependencies. Container engines enable horizontal "
+        "scaling compared to virtualization. Orchestration frameworks handle rolling updates."
+    )
+    analysis = processor.analyze(paragraph)
+
+    assert analysis.query_type == "complex"
+    assert len(analysis.subqueries) >= 2
+    assert all(len(q) < len(paragraph) for q in analysis.subqueries)
